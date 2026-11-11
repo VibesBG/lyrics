@@ -1,0 +1,36 @@
+<!doctype html><meta charset="utf-8"><body>
+<script src="../src/core.js"></script>
+<script>
+let n=0; const fails=[];
+function eq(name,a,b){ try{ const A=typeof a==='function'?a():a; if(JSON.stringify(A)===JSON.stringify(b)) n++; else fails.push('FAIL: '+name+' got '+JSON.stringify(A)); }catch(e){ fails.push('FAIL: '+name+' threw '+e.message); } }
+function T(){
+eq('stanzas split on blank line', ()=>parseLyrics('a\nb\n\nc').map(s=>s.lines), [['a','b'],['c']]);
+eq('label taken off', ()=>parseLyrics('Chorus\nla la\n\nVerse 2:\nx').map(s=>[s.label,s.lines]), [['Chorus',['la la']],['Verse 2',['x']]]);
+eq('bracket label', ()=>parseLyrics('[Bridge]\nyo')[0].label, 'Bridge');
+eq('bulgarian label', ()=>parseLyrics('Припев:\nдо ре ми')[0].label, 'Припев');
+eq('chorus shaded', ()=>parseLyrics('Verse\na\n\nChorus\nb').map(s=>s.rep), [false,true]);
+eq('repeated text shaded', ()=>parseLyrics('x y\n\nz\n\nx y').map(s=>s.rep), [true,false,true]);
+eq('label alone kept as a line', ()=>parseLyrics('a\n\nChorus').map(s=>[s.label,s.lines,s.rep]), [[null,['a'],false],['Chorus',[],true]]);
+eq('normal line not a label', ()=>parseLyrics('Chorus girl is singing')[0].label, null);
+eq('hash stable', ()=>hashText('abc')===hashText('abc')&&hashText('abc')!==hashText('abd')&&/^h[0-9a-f]+$/.test(hashText('abc')), true);
+eq('validate v1', ()=>validateLyricsFile({kind:'lyrics-pack',v:1,gigs:[{id:'mybar',name:'A',sets:[]}],texts:{}}).ok, true);
+eq('validate wrong kind', ()=>validateLyricsFile({kind:'setlists-gigs',gigs:[]}).ok, false);
+eq('conflicts', ()=>importConflicts([{id:'a'}],[{id:'a'},{id:'b'}]), ['a']);
+const lib={kind:'lyrics-pack',v:1,gigs:[{id:'a',name:'A',sets:[]}],texts:{t1:'one'}};
+const file={kind:'lyrics-pack',v:2,gigs:[{id:'a',name:'A new',sets:[]},{id:'r',name:'R',sets:[]}],texts:{t2:'two'}};
+eq('replace + union', ()=>{const L=applyLyricsImport(lib,file,'replace');return [L.v,L.gigs.map(g=>g.name),Object.keys(L.texts).sort()]}, [2,['A new','R'],['t1','t2']]);
+eq('keep both', ()=>applyLyricsImport(lib,file,'keep').gigs.map(g=>g.id), ['a','a2','r']);
+eq('lib untouched', ()=>lib.gigs[0].name, 'A');
+const gigs=[{id:'g',name:'G',sets:[{name:'',songs:[{t:'Song',a:'Me',x:'old'},{t:'Empty'}]}]}];
+eq('make file', ()=>{const f=makeLyricsFile(gigs,x=>x.t==='Song'?'la':'', '2026-11-11'); const s=f.gigs[0].sets[0].songs;
+  return [validateLyricsFile(f).ok, s[0].x===hashText('la'), f.texts[s[0].x], s[1].x, s[0].a];}, [true,true,'la',undefined,'Me']);
+eq('migrate played', ()=>{ const st={'played:mybar:1':true}; const g=[{id:'mybar',sets:[{name:'',songs:[{t:'A b'},{t:'Song One'}]}]}];
+  migratePlayed(g,k=>st[k],(k,v)=>{st[k]=v},k=>{delete st[k]}); return Object.keys(st); }, ['played:mybar:songone']);
+
+eq('lyrics: set without songs gets []', ()=>validateLyricsFile({kind:'lyrics-pack',v:2,gigs:[{id:'a',name:'A',sets:[{name:'S'}]}],texts:{}}).file.gigs[0].sets[0].songs, []);
+eq('lyrics: bad songs dropped, texts must be strings', ()=>{const f=validateLyricsFile({kind:'lyrics-pack',v:2,gigs:[{id:'a',name:'A',sets:[{name:'',songs:[null,{t:''},{t:'Ok',a:5,x:'k'}]}]}],texts:{k:'words',z:7}}).file; return [f.gigs[0].sets[0].songs,f.texts];}, [[{t:'Ok',x:'k'}],{k:'words'}]);
+eq('lyrics: sanitizeLib on stored data', ()=>sanitizeLib({kind:'lyrics-pack',v:1,gigs:[{id:'a',name:'A',sets:[{name:'S'}]}]}).gigs[0].sets[0].songs, []);
+}
+try{T()}catch(e){fails.push('ERROR: '+e.message)}
+document.body.textContent=fails.length?fails.join('\n'):'PASS '+n;
+</script>

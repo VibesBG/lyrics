@@ -1,0 +1,14 @@
+{
+ "gig": {"id": "example", "name": "Example gig", "sets": [{"name": "", "songs": [
+  {"t": "Amazing Grace", "a": "John Newton, 1779", "x": "ex1",
+   "tip": {"en": "Press ▶ at the bottom and the lyrics scroll by themselves (− / + for speed). Swipe left for the next song.",
+           "bg": "Натисни ▶ долу и текстът се скролва сам (− / + за скорост). Плъзни наляво за следващата песен."}},
+  {"t": "Auld Lang Syne", "a": "Robert Burns, 1788", "x": "ex2",
+   "tip": {"en": "The chorus is shaded so you find it fast. Mark it by writing Chorus on its own line. Make the text bigger in Aa.",
+           "bg": "Припевът е оцветен, за да го намираш бързо. Отбелязва се, като напишеш Припев на отделен ред. Увеличи текста от Aa."}}
+ ]}]},
+ "texts": {
+  "ex1": "Amazing grace! How sweet the sound\nThat saved a wretch like me!\nI once was lost, but now am found;\nWas blind, but now I see.\n\n'Twas grace that taught my heart to fear,\nAnd grace my fears relieved;\nHow precious did that grace appear\nThe hour I first believed.\n\nThrough many dangers, toils and snares,\nI have already come;\n'Tis grace hath brought me safe thus far,\nAnd grace will lead me home.\n\nThe Lord has promised good to me,\nHis word my hope secures;\nHe will my shield and portion be,\nAs long as life endures.",
+  "ex2": "Should auld acquaintance be forgot,\nAnd never brought to mind?\nShould auld acquaintance be forgot,\nAnd auld lang syne?\n\nChorus\nFor auld lang syne, my jo,\nFor auld lang syne,\nWe'll tak a cup o' kindness yet,\nFor auld lang syne.\n\nAnd surely ye'll be your pint-stoup!\nAnd surely I'll be mine!\nAnd we'll tak a cup o' kindness yet,\nFor auld lang syne.\n\nChorus\nFor auld lang syne, my jo,\nFor auld lang syne,\nWe'll tak a cup o' kindness yet,\nFor auld lang syne.\n\nWe twa hae run about the braes,\nAnd pou'd the gowans fine;\nBut we've wander'd mony a weary fit,\nSin' auld lang syne.\n\nChorus\nFor auld lang syne, my jo,\nFor auld lang syne,\nWe'll tak a cup o' kindness yet,\nFor auld lang syne."
+ }
+}

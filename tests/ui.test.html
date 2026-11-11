@@ -1,0 +1,95 @@
+<!doctype html><meta charset="utf-8"><body>
+<script src="ui.js"></script>
+<script>
+const V1={kind:'lyrics-pack',v:1,made:'2026-11-11',gigs:[{id:'mybar',name:'Friday Bar',sets:[{name:'Set 1',songs:[{t:'Song One',x:'t1'},{t:'Song Two',x:'t2'}]}]}],texts:{t1:'First line here\n\nChorus\nChorus line here',t2:'Another song line'}};
+run([
+ ['L1 old v1 pack still works + notice', async()=>{ const d=await open('#g-mybar',{'ly-pack':V1,'ly-seenWelcome':true});
+   ok('mybar listed', !!d.querySelector('.gig[data-gig="mybar"]')); ok('no missing lyrics', !d.querySelector('.row .miss'));
+   ok('notice', !!d.getElementById('oldPack')); ok('no sunday', !d.querySelector('.gig[data-gig="sunday"]')); }],
+ ['L1 song shows lyrics + chorus shading', async()=>{ const d=await open('#mybar-1',{'ly-pack':V1,'ly-seenWelcome':true});
+   ok('lyrics', /First line here/.test(d.querySelector('.lyrics').textContent)); ok('chorus shaded', !!d.querySelector('.st.rep'));
+   ok('label shown', /Chorus/.test(d.querySelector('.st.rep .lbl')&&d.querySelector('.st.rep .lbl').textContent)); }],
+ ['L1 played marks migrate', async()=>{ const d=await open('#g-mybar',{'ly-pack':V1,'ly-played:mybar:1':true,'ly-seenWelcome':true});
+   ok('new key', localStorage.getItem('ly-played:mybar:songtwo')==='true'); ok('old key gone', localStorage.getItem('ly-played:mybar:1')===null);
+   ok('row marked', d.querySelectorAll('.row.played').length===1); }],
+ ['L1 no pack: example + welcome', async()=>{ const d=await open('');
+   ok('example gig', !!d.querySelector('.gig[data-gig="example"]')); ok('welcome', !!d.getElementById('welcome')); ok('no notice', !d.getElementById('oldPack')); }],
+ ['L1 v2 pack: no notice', async()=>{ const d=await open('#g-mybar',{'ly-pack':Object.assign({},V1,{v:2}),'ly-seenWelcome':true});
+   ok('no notice', !d.getElementById('oldPack')); }],
+ ['L1 hide example', async()=>{ const d=await open('#g-mybar',{'ly-pack':V1,'ly-prefs':{hideExample:true},'ly-seenWelcome':true});
+   ok('hidden', !d.querySelector('.gig[data-gig="example"]')); }],
+ ['L2 new gig + add song by typing', async()=>{ const d=await open('');
+   d.querySelector('[data-act="newgig"]').click(); await sleep(200);
+   ok('in editor', /^#edit-u[a-z0-9]+$/.test(frame.contentWindow.location.hash), frame.contentWindow.location.hash);
+   d.getElementById('addSong').click(); await sleep(100);
+   d.getElementById('fTitle').value='My song'; d.getElementById('fArtist').value='Me'; d.getElementById('fLyrics').value='la la\n\nChorus\noh oh';
+   d.getElementById('fSave').click(); await sleep(150);
+   const L=JSON.parse(localStorage.getItem('ly-pack')); const x=L.gigs[0].sets[0].songs[0];
+   ok('song saved', x&&x.t==='My song'&&x.a==='Me', x); ok('lyrics stored by id', x&&L.texts[x.x]==='la la\n\nChorus\noh oh', L.texts);
+   ok('plain json (no app fields)', L.gigs[0].songs===undefined&&x.gig===undefined); }],
+ ['L2 edit owner song lyrics + rename keeps note', async()=>{ const d=await open('#mybar-1',{'ly-pack':V1,'ly-seenWelcome':true,'ly-note:songone':'"hi"','ly-edit:songone':'"old paste"'});
+   d.querySelector('[data-act="edit"]').click(); await sleep(100);
+   ok('prefilled', d.getElementById('fLyrics').value==='old paste', d.getElementById('fLyrics').value);
+   d.getElementById('fTitle').value='Song One 2'; d.getElementById('fLyrics').value='new words'; d.getElementById('fSave').click(); await sleep(150);
+   const L=JSON.parse(localStorage.getItem('ly-pack')); const x=L.gigs[0].sets[0].songs[0];
+   ok('new text', L.texts[x.x]==='new words'); ok('pasted fix follows the newest text', JSON.parse(localStorage.getItem('ly-edit:songone'))==='new words');
+   ok('note moved', JSON.parse(localStorage.getItem('ly-note:songone2'))==='hi'); ok('shows new words', /new words/.test(d.querySelector('.lyrics').textContent)); }],
+ ['L2 gig editor reorder/delete', async()=>{ const d=await open('#edit-mybar',{'ly-pack':V1,'ly-seenWelcome':true}); frame.contentWindow.confirm=()=>true;
+   const songRow=()=>[...d.querySelectorAll('.it')].filter(r=>r.querySelector('.ittitle'))[0];
+   songRow().querySelector('[data-mv="1"]').click(); await sleep(100);
+   let t=JSON.parse(localStorage.getItem('ly-pack')).gigs[0].sets.flatMap(s=>s.songs.map(x=>x.t)); ok('moved', t.join()==='Song Two,Song One', t);
+   songRow().querySelector('[data-del]').click(); await sleep(100);
+   t=JSON.parse(localStorage.getItem('ly-pack')).gigs[0].sets.flatMap(s=>s.songs.map(x=>x.t)); ok('deleted', t.join()==='Song One', t); }],
+ ['L2 example not editable', async()=>{ const d=await open('#example-1',{'ly-seenWelcome':true}); ok('no edit', !d.querySelector('[data-act="edit"]')); }],
+ ['L2 save gig to file', async()=>{ const d=await open('#edit-mybar',{'ly-pack':V1,'ly-seenWelcome':true});
+   let got=null; frame.contentWindow.downloadJSON=(name,obj)=>{got={name,obj}};
+   d.getElementById('saveGigFile').click(); await sleep(100);
+   ok('name', got&&got.name==='Friday Bar.lyrics.json', got&&got.name);
+   ok('valid with lyrics', got&&frame.contentWindow.validateLyricsFile(got.obj).ok&&Object.values(got.obj.texts).some(t=>/First line/.test(t))); }],
+ ['L2 load new file over v1: replace', async()=>{ const d=await open('#g-mybar',{'ly-pack':V1,'ly-seenWelcome':true});
+   const NEW={kind:'lyrics-pack',v:2,gigs:[V1.gigs[0],{id:'sunday',name:'Sunday Band',sets:[{name:'',songs:[{t:'Song C',a:'Some Artist'}]}]}],texts:V1.texts};
+   frame.contentWindow.importText(JSON.stringify(NEW)); await sleep(100);
+   d.getElementById('impReplace').click(); await sleep(200);
+   const L=JSON.parse(localStorage.getItem('ly-pack')); ok('v2', L.v===2); ok('sunday added', L.gigs.some(g=>g.id==='sunday'));
+   ok('notice gone', !d.getElementById('oldPack')); }],
+ ['L2 bad file', async()=>{ const d=await open('',{'ly-seenWelcome':true}); frame.contentWindow.importText('{"kind":"setlists-gigs","gigs":[]}'); await sleep(100);
+   ok('toast', /isn.t a lyrics file/.test(d.getElementById('toast').textContent), d.getElementById('toast').textContent); }],
+ ['L2 save fails -> toast, sheet stays', async()=>{ const d=await open('#edit-mybar',{'ly-pack':V1,'ly-seenWelcome':true});
+   d.getElementById('addSong').click(); await sleep(100); frame.contentWindow.Storage.prototype.setItem=function(){throw new Error('full')};
+   d.getElementById('fTitle').value='X'; d.getElementById('fSave').click(); await sleep(100);
+   ok('sheet open', !!d.getElementById('fTitle')); ok('toast', /save/i.test(d.getElementById('toast').textContent)); }],
+ ['L2 welcome, help, bulgarian', async()=>{ let d=await open('');
+   d.querySelector('[data-act="help"]').click(); await sleep(100); ok('help', /Home Screen/.test(d.getElementById('sheetHost').textContent));
+   d=await open('',{'ly-prefs':{lang:'bg'}}); ok('bg welcome', d.querySelector('#welcome h2').textContent==='Добре дошъл', d.querySelector('#welcome h2').textContent);
+   ok('bg placeholder', /Търси/.test(d.getElementById('find').placeholder)); ok('html lang', d.documentElement.lang==='bg'); ok('example name bg', /Примерно участие/.test(d.querySelector('.gig[data-gig="example"]').textContent));
+   d.getElementById('wGot').click(); await sleep(100); ok('got it', localStorage.getItem('ly-seenWelcome')==='true'); }],
+ ['L2 settings', async()=>{ const d=await open('#g-mybar',{'ly-pack':Object.assign({},V1,{v:2}),'ly-seenWelcome':true});
+   let got=null; frame.contentWindow.downloadJSON=(name,obj)=>{got={name,obj}};
+   d.getElementById('optBtn').click(); await sleep(100);
+   d.getElementById('oSaveAll').click(); ok('save all', got&&got.name==='my-lyrics.lyrics.json'&&got.obj.gigs.length===1);
+   d.querySelector('#optLang [data-v="bg"]').click(); await sleep(100); ok('lang saved', JSON.parse(localStorage.getItem('ly-prefs')).lang==='bg');
+   d.querySelector('#optEx [data-v="hide"]').click(); await sleep(100); ok('example hidden', !d.querySelector('.gig[data-gig="example"]')); }],
+ ['L2 example songs', async()=>{ let d=await open('#g-example',{'ly-seenWelcome':true});
+   const rows=[...d.querySelectorAll('.row .t')].map(x=>x.firstChild.textContent); ok('two songs', rows.join('|')==='Amazing Grace|Auld Lang Syne', rows);
+   d=await open('#example-2',{'ly-seenWelcome':true}); ok('chorus shaded', d.querySelectorAll('.st.rep').length>=2); ok('tip', !!d.querySelector('.tip')); }],
+ ['L2 multi-gig file opens its first gig', async()=>{ const d=await open('',{'ly-seenWelcome':true});
+   frame.contentWindow.importText(JSON.stringify({kind:'lyrics-pack',v:2,gigs:[{id:'one',name:'One',sets:[]},{id:'two',name:'Two',sets:[]}],texts:{}})); await sleep(200);
+   ok('first gig shown', frame.contentDocument.getElementById('title').textContent==='One', frame.contentDocument.getElementById('title').textContent); }],
+ ['FIX broken stored library does not blank the app', async()=>{ const d=await open('#g-mybar',{'ly-pack':{kind:'lyrics-pack',v:2,gigs:[{id:'mybar',name:'Bar',sets:[{name:'S'},{name:'T',songs:[{t:'Ok'}]}]}],texts:{}},'ly-seenWelcome':true});
+   ok('list rendered', d.querySelectorAll('.row').length===1, d.querySelectorAll('.row').length); }],
+ ['FIX editing lyrics in one gig keeps the fix in other gigs', async()=>{ const lib={kind:'lyrics-pack',v:2,gigs:[{id:'one',name:'One',sets:[{name:'',songs:[{t:'Song A',x:'p'}]}]},{id:'two',name:'Two',sets:[{name:'',songs:[{t:'Song A',x:'p'}]}]}],texts:{p:'pack words'}};
+   const d=await open('#one-1',{'ly-pack':lib,'ly-edit:songa':'"my fix"','ly-seenWelcome':true});
+   d.querySelector('[data-act="edit"]').click(); await sleep(100); d.getElementById('fLyrics').value='newer fix'; d.getElementById('fSave').click(); await sleep(150);
+   frame.contentWindow.location.hash='two-1'; await sleep(300);
+   ok('gig two shows the newest fix', /newer fix/.test(frame.contentDocument.querySelector('.lyrics').textContent), frame.contentDocument.querySelector('.lyrics').textContent); }],
+ ['FIX failed note save warns + rename under full storage keeps note', async()=>{ const d=await open('#mybar-1',{'ly-pack':V1,'ly-note:songone':'"keep me"','ly-seenWelcome':true});
+   frame.contentWindow.Storage.prototype.setItem=function(){throw new Error('full')};
+   const t=d.getElementById('mynote'); t.value='x'; t.dispatchEvent(new Event('input')); await sleep(50);
+   ok('toast', /save/i.test(d.getElementById('toast').textContent), d.getElementById('toast').textContent);
+   ok('old note still there', localStorage.getItem('ly-note:songone')==='"keep me"'); }],
+ ['FIX rename onto existing title keeps that note', async()=>{ const d=await open('#mybar-1',{'ly-pack':V1,'ly-note:songone':'"one"','ly-note:songtwo':'"two"','ly-seenWelcome':true});
+   d.querySelector('[data-act="edit"]').click(); await sleep(100); d.getElementById('fTitle').value='Song Two'; d.getElementById('fSave').click(); await sleep(150);
+   ok('two kept', localStorage.getItem('ly-note:songtwo')==='"two"', localStorage.getItem('ly-note:songtwo')); }],
+
+]);
+</script>
