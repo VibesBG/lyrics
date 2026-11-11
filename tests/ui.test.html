@@ -16,7 +16,8 @@ run([
    ok('example gig', !!d.querySelector('.gig[data-gig="example"]')); ok('welcome', !!d.getElementById('welcome')); ok('no notice', !d.getElementById('oldPack')); }],
  ['L1 v2 pack: no notice', async()=>{ const d=await open('#g-mybar',{'ly-pack':Object.assign({},V1,{v:2}),'ly-seenWelcome':true});
    ok('no notice', !d.getElementById('oldPack')); }],
- ['L1 hide example', async()=>{ const d=await open('#g-mybar',{'ly-pack':V1,'ly-prefs':{hideExample:true},'ly-seenWelcome':true});
+ ['L1 example gone once you have your own gig', async()=>{ const d=await open('#g-mybar',{'ly-pack':V1});
+   ok('no welcome with own gigs', !d.getElementById('welcome'));
    ok('hidden', !d.querySelector('.gig[data-gig="example"]')); }],
  ['L2 new gig + add song by typing', async()=>{ const d=await open('');
    d.querySelector('[data-act="newgig"]').click(); await sleep(200);
@@ -68,7 +69,8 @@ run([
    d.getElementById('optBtn').click(); await sleep(100);
    d.getElementById('oSaveAll').click(); ok('save all', got&&got.name==='my-lyrics.lyrics.json'&&got.obj.gigs.length===1);
    d.querySelector('#optLang [data-v="bg"]').click(); await sleep(100); ok('lang saved', JSON.parse(localStorage.getItem('ly-prefs')).lang==='bg');
-   d.querySelector('#optEx [data-v="hide"]').click(); await sleep(100); ok('example hidden', !d.querySelector('.gig[data-gig="example"]')); }],
+   ok('example not there', !d.querySelector('.gig[data-gig="example"]'));
+   d.querySelector('#optEx [data-v="show"]').click(); await sleep(100); ok('example back on request', !!d.querySelector('.gig[data-gig="example"]')); }],
  ['L2 example songs', async()=>{ let d=await open('#g-example',{'ly-seenWelcome':true});
    const rows=[...d.querySelectorAll('.row .t')].map(x=>x.firstChild.textContent); ok('two songs', rows.join('|')==='Amazing Grace|Auld Lang Syne', rows);
    d=await open('#example-2',{'ly-seenWelcome':true}); ok('chorus shaded', d.querySelectorAll('.st.rep').length>=2); ok('tip', !!d.querySelector('.tip')); }],
@@ -91,5 +93,8 @@ run([
    d.querySelector('[data-act="edit"]').click(); await sleep(100); d.getElementById('fTitle').value='Song Two'; d.getElementById('fSave').click(); await sleep(150);
    ok('two kept', localStorage.getItem('ly-note:songtwo')==='"two"', localStorage.getItem('ly-note:songtwo')); }],
 
+ ['EX new gig removes example', async()=>{ const d=await open('');
+   d.querySelector('[data-act="newgig"]').click(); await sleep(200); frame.contentDocument.getElementById('doneGig').click(); await sleep(200);
+   ok('example gone', !frame.contentDocument.querySelector('.gig[data-gig="example"]')); ok('welcome gone', !frame.contentDocument.getElementById('welcome')); }],
 ]);
 </script>

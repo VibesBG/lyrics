@@ -201,7 +201,8 @@ function build(){
   const lib=LIBRARY();
   // canonical lyrics per title: first gig in the library that has it (files list the newest gig first)
   lib.gigs.forEach(g=>g.sets.forEach(s=>s.songs.forEach(x=>{ const k=norm(x.t); if(!(k in LIB)&&lib.texts[x.x]) LIB[k]=lib.texts[x.x]; })));
-  if(!(prefs.hideExample&&lib.gigs.length)) GIGS.push(EXAMPLE.gig);
+  // the example gig steps aside once you have a gig of your own (Aa can bring it back)
+  if(!lib.gigs.length||prefs.showExample) GIGS.push(EXAMPLE.gig);
   lib.gigs.forEach(g=>GIGS.push(g));
   GIGS.forEach(g=>{ g.songs=[]; g.sets.forEach(s=>s.songs.forEach(x=>{ x.set=s.name; x.gig=g; x.idx=g.songs.length; x.no=String(g.songs.length+1); g.songs.push(x); })); });
 }
@@ -216,7 +217,7 @@ let GIG=null, cur=-1, query='';
 function useGig(id){ GIG=GIGS.find(g=>g.id===id)||GIGS[0]; store.set('gig',GIG.id); }
 
 /* ---------- prefs ---------- */
-const prefs=Object.assign({scale:1,theme:null,speed:4,cols:false,hideExample:false,lang:'en'},store.get('prefs',{}));
+const prefs=Object.assign({scale:1,theme:null,speed:4,cols:false,showExample:false,lang:'en'},store.get('prefs',{}));
 const savePrefs=()=>store.set('prefs',prefs);
 build();
 if(PACK&&!store.get('migratedPlayed',false)){ migratePlayed(PACK.gigs,k=>store.get(k,false),(k,v)=>store.set(k,v),k=>store.del(k)); store.set('migratedPlayed',true); }
@@ -414,7 +415,7 @@ function showList(){
   const chips=`<div class="gigs" role="tablist" aria-label="${tr('Choose gig')}">`+GIGS.map(g=>`<button role="tab" class="gig" data-gig="${g.id}" aria-selected="${g===GIG}"><b>${esc(g.name)}</b><small>${songsN(g.songs.length)}</small></button>`).join('')+'</div>';
   const cards=(PACK&&PACK.v===1?`<div class="welcome" id="oldPack"><h2>${tr('New lyrics file')}</h2><p>${tr('There is a newer lyrics file with all your gigs. Load it once and you’re up to date. Your own changes and notes stay.')}</p>
     <div class="acts"><button class="tbtn primary" data-act="load">${tr('Load lyrics file')}</button><button class="tbtn" data-act="howto">${tr('How do I get the file?')}</button></div></div>`:'')
-    +(!seenWelcome()?`<div class="welcome" id="welcome"><h2>${tr('Welcome')}</h2><p>${tr('This is an example gig. Open a song and try it: big readable lyrics, the chorus shaded, auto-scroll, swipe to the next song. Then make your own gig.')}</p>
+    +(!seenWelcome()&&!mine?`<div class="welcome" id="welcome"><h2>${tr('Welcome')}</h2><p>${tr('This is an example gig. Open a song and try it: big readable lyrics, the chorus shaded, auto-scroll, swipe to the next song. Then make your own gig.')}</p>
     <div class="acts"><button class="tbtn primary" data-act="newgig">${tr('Make my gig')}</button><button class="tbtn" data-act="load">${tr('Load a file')}</button><button class="tbtn" data-act="help">${tr('Help')}</button><button class="tbtn" data-act="gotit" id="wGot">${tr('Got it')}</button></div></div>`
     :mine?'':`<div class="welcome" id="emptyCard"><h2>${tr('Make it yours')}</h2><p>${tr('This is an example gig. Make your own gig and type or paste your lyrics in, or load a lyrics file someone sent you.')}</p>
     <div class="acts"><button class="tbtn primary" data-act="newgig">${tr('Make your own gig')}</button><button class="tbtn" data-act="load">${tr('Load a file')}</button></div></div>`);
@@ -522,7 +523,7 @@ function openOptions(){
     <div class="opt"><span>${tr('Look')}<small>${tr('Stage is dark, Daylight for sun')}</small></span>${segHTML('oTheme',[['dark',tr('Stage')],['light',tr('Daylight')]],isDark()?'dark':'light')}</div>
     <div class="opt"><span>${tr('Two columns')}<small>${tr('Fits more of the song on a tablet in landscape')}</small></span>${segHTML('oCols',[['1',tr('On')],['0',tr('Off')]],prefs.cols?'1':'0')}</div>
     <div class="opt"><span>${tr('Keep screen on')}<small>${tr('While the app is open')}</small></span>${segHTML('oWake',[['on',tr('On')],['off',tr('Off')]],lock?'on':'off')}</div>
-    ${mine?`<div class="opt"><span>${tr('Example gig')}<small>${tr('Show it next to your own gigs')}</small></span>${segHTML('optEx',[['show',tr('Show')],['hide',tr('Hide')]],prefs.hideExample?'hide':'show')}</div>`:''}
+    ${mine?`<div class="opt"><span>${tr('Example gig')}<small>${tr('Show it next to your own gigs')}</small></span>${segHTML('optEx',[['show',tr('Show')],['hide',tr('Hide')]],prefs.showExample?'show':'hide')}</div>`:''}
     <div class="opt"><span>${tr('My gigs')}<small>${tr('Save all your gigs and lyrics to one file (backup), or load a file')}</small></span><div class="acts">${mine?`<button class="tbtn" id="oSaveAll">${tr('Save all')}</button>`:''}<button class="tbtn" id="oLoad">${tr('Load')}</button></div></div>
     <div class="opt"><span>${tr('Help')}<small>${tr('How to use the app')}</small></span><button class="tbtn" id="oHelp">${tr('Open')}</button></div>
   </div>`,()=>{
@@ -532,7 +533,7 @@ function openOptions(){
     wire('oTheme',v=>{document.documentElement.dataset.theme=v;prefs.theme=v;savePrefs()});
     wire('oCols',v=>{prefs.cols=v==='1';savePrefs();if(cur>=0)rerender()});
     wire('oWake',v=>v==='on'?wakeOn():wakeOff());
-    if($('optEx')) wire('optEx',v=>{prefs.hideExample=v==='hide';savePrefs();build();useGig(GIGS.some(g=>g.id===GIG.id)?GIG.id:GIGS[0].id);refresh()});
+    if($('optEx')) wire('optEx',v=>{prefs.showExample=v==='show';savePrefs();build();useGig(GIGS.some(g=>g.id===GIG.id)?GIG.id:GIGS[0].id);refresh()});
     if($('oSaveAll')) $('oSaveAll').onclick=()=>saveFile(LIBRARY().gigs,'my-lyrics.lyrics.json');
     $('oLoad').onclick=()=>{closeSheet();pickFile()};
     $('oHelp').onclick=openHelp;

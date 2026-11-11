@@ -8,7 +8,7 @@ A lyrics app for singing at gigs from your phone or tablet. Big, readable lyrics
 
 ## Use it for your band
 
-1. Open the link. It starts with an example gig of two songs, so open them and try things out.
+1. Open the link. It starts with an example gig of two songs, so open them and try things out. The example steps aside as soon as you make or load your own gig.
 2. Tap **Make your own gig**, give it a name, and add your songs.
 3. Type or paste each song's lyrics (see below). Split the gig into sets and put everything in order with ↑ ↓.
 4. Add the app to your Home Screen. After the first visit it works without internet.
