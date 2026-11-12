@@ -154,9 +154,10 @@ mark{background:var(--accent-soft);color:inherit;border-radius:3px;padding:0 2px
 .toast.on{opacity:1}
 .linkbtn{background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;cursor:pointer;font-weight:700}
 .pick{display:grid;gap:4px;max-height:38vh;overflow:auto;padding:2px}
-.pk{display:flex;align-items:center;gap:12px;min-height:48px;padding:6px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);cursor:pointer;color:var(--fg);font-weight:500;font-size:16px}
+.form .pk{display:flex;align-items:center;gap:12px;min-height:48px;padding:6px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);cursor:pointer;color:var(--fg);font-weight:500;font-size:16px}
 .form .pk input{width:22px;height:22px;min-height:0;flex:none;accent-color:var(--accent)}
-.pk span{min-width:0}
+.pk span{min-width:0;flex:1;text-align:left}
+.pk b{font-weight:600}
 .pk small{display:block;color:var(--muted);font-size:12px}
 .pickhead{display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--muted);font-size:14px;font-weight:700}
 .pickhead span{display:flex;gap:14px}
@@ -376,12 +377,8 @@ const BG={
  'These gigs are already here: {0}. Replace them with the file, or keep both?':'Тези участия вече са тук: {0}. Да ги заменя ли с файла или да пазя и двете?',
  'Replace':'Замени','Keep both':'Пази и двете','Couldn’t read that file':'Не можах да прочета файла',
  '↗ Send':'↗ Изпрати','Send “{0}”':'Изпрати „{0}“','Your name':'Твоето име','So they know who sent it':'За да знаят кой го праща',
- 'Songs to send':'Песни за изпращане','All':'Всички','None':'Нито една','Send link':'Изпрати линк','Send as file':'Изпрати като файл','Pick at least one song':'Избери поне една песен',
- 'The lyrics go with the songs, including your own fixes. Your notes stay private.':'Текстовете отиват с песните, заедно с твоите поправки. Бележките ти остават лични.',
- 'This link is long ({0} characters). If it arrives cut off, use Send as file.':'Линкът е дълъг ({0} знака). Ако пристигне отрязан, използвай „Изпрати като файл“.',
- 'Preparing the link…':'Подготвям линка…','Link copied. Paste it in Viber, WhatsApp or Messenger.':'Линкът е копиран. Постави го във Viber, WhatsApp или Messenger.',
- 'Copy this message and send it:':'Копирай това съобщение и го изпрати:','A bandmate':'Колега',
- '{0} sent you the lyrics for “{1}” ({2}). Open the link to add them to Gig Lyrics:':'{0} ти изпрати текстовете за „{1}“ ({2}). Отвори линка, за да ги добавиш в Gig Lyrics:',
+ 'Songs to send':'Песни за изпращане','All':'Всички','None':'Нито една','Send file':'Изпрати файла','Pick at least one song':'Избери поне една песен',
+ 'The lyrics go with the songs, including your own fixes. Your notes stay private.':'Текстовете отиват с песните, заедно с твоите поправки. Бележките ти остават лични.','A bandmate':'Колега','Pick Viber, WhatsApp or Messenger, then the person. They save the file and open it with Load a file.':'Избери Viber, WhatsApp или Messenger и човека. Той запазва файла и го отваря със „Зареди файл“.',
  '{0} sent you a gig':'{0} ти изпрати участие','New gig':'Ново участие','Add it':'Добави го','Update it':'Обнови го','and {0} more':'и още {0}',
  'You already have this gig. Updating it keeps your notes and ✓ marks.':'Вече имаш това участие. Обновяването пази бележките и отметките ти.',
  'Lyrics you fixed yourself stay as you fixed them.':'Текстовете, които си поправил сам, остават с твоите поправки.',
@@ -403,7 +400,7 @@ const HELP={en:[
  ['On stage','▶ scrolls the lyrics by themselves (− / + for speed). Swipe left or right for the next or previous song. A Bluetooth page-turner pedal works too (arrow keys or Page Up / Page Down). In Aa: text size, Stage/Daylight, two columns, keep the screen on.'],
  ['Find a song fast','The search box finds a song by its title or by any line of its lyrics, across all gigs.'],
  ['Add to Home Screen','iPhone/iPad: open in Safari, tap Share, then “Add to Home Screen”. Android: Chrome menu ⋮, then “Add to Home screen”. After the first visit it works without internet.'],
- ['Send to a singer','Open a gig and tap ↗ Send. Pick the songs (for example only the ones they sing), then send the link in Viber, WhatsApp or Messenger. When they open it, the gig and its lyrics are added to their Gig Lyrics. Send it again after a change and their copy is updated.'],
+ ['Send to a singer','Open a gig and tap ↗ Send. Pick the songs (for example only the ones they sing), tap Send file, then choose Viber, WhatsApp or Messenger and the person. They save the file and open it with Load a file; the app asks whether to add the gig and its lyrics. Send it again after a change and their copy is updated.'],
  ['Back up and share','In a gig, tap “Save gig to file” to back it up or send it to a bandmate. “Load a file” puts it on another phone. Aa › My gigs › Save all makes one backup of everything.'],
  ['Your data','Your gigs, lyrics and notes are saved only on this device. Nothing is sent anywhere. Clearing the browser data deletes them, so keep a backup file.']
 ],bg:[
@@ -412,7 +409,7 @@ const HELP={en:[
  ['На сцената','▶ скролва текста сам (− / + за скорост). Плъзни наляво или надясно за следваща или предишна песен. Работи и Bluetooth педал за страници (стрелки или Page Up / Page Down). В Aa: размер на текста, Сцена/Ден, две колони, екранът да не гасне.'],
  ['Намери песен бързо','Търсачката намира песен по заглавие или по който и да е ред от текста, във всички участия.'],
  ['Добави на началния екран','iPhone/iPad: отвори в Safari, натисни Сподели, после „Добави към началния екран“. Android: менюто ⋮ в Chrome, после „Добави към началния екран“. След първото отваряне работи и без интернет.'],
- ['Изпрати на певец','Отвори участие и натисни ↗ Изпрати. Избери песните (например само тези, които пее), после прати линка във Viber, WhatsApp или Messenger. Когато го отвори, участието и текстовете се добавят в неговия Gig Lyrics. Прати го пак след промяна и копието му се обновява.'],
+ ['Изпрати на певец','Отвори участие и натисни ↗ Изпрати. Избери песните (например само тези, които пее), натисни „Изпрати файла“ и избери Viber, WhatsApp или Messenger и човека. Той запазва файла и го отваря със „Зареди файл“; приложението пита дали да добави участието и текстовете. Прати го пак след промяна и копието му се обновява.'],
  ['Резервно копие и споделяне','В участие натисни „Запази във файл“, за да го пазиш или пратиш на колега. „Зареди файл“ го слага на друг телефон. Aa › Моите участия › Запази всички прави едно копие на всичко.'],
  ['Твоите данни','Участията, текстовете и бележките се пазят само на това устройство. Нищо не се изпраща никъде. Ако изчистиш данните на браузъра, те се трият, затова пази резервен файл.']
 ]};
@@ -698,46 +695,30 @@ $('slower').onclick=()=>{prefs.speed=Math.max(1,prefs.speed-1);savePrefs();syncS
 $('faster').onclick=()=>{prefs.speed=Math.min(15,prefs.speed+1);savePrefs();syncScroll()};
 syncScroll();
 
-/* ---------- send to a singer (link) ---------- */
-const LINK_LONG=6000, mobile=()=>/iPhone|iPad|Android/i.test(navigator.userAgent);
+/* ---------- send to a singer (file) ---------- */
 const gigSongs=g=>{ const a=[]; g.sets.forEach(s=>s.songs.forEach(x=>a.push(x))); return a; };
 function openSend(gigId){
   const g=GIGS.find(x=>x.id===gigId); if(!g||g.ex) return;
-  const songs=gigSongs(g); let ready=null, seq=0;
+  const songs=gigSongs(g);
   openSheet(tr('Send “{0}”',g.name),`<div class="form">
     <label>${tr('Your name')}<input id="sName" value="${esc(prefs.name||'')}" maxlength="40" autocomplete="name" placeholder="${tr('So they know who sent it')}"></label>
     <div class="pickhead">${tr('Songs to send')}<span><button class="linkbtn" id="sAll">${tr('All')}</button><button class="linkbtn" id="sNone">${tr('None')}</button></span></div>
     <div class="pick">${songs.map((x,i)=>`<label class="pk"><input type="checkbox" data-i="${i}" checked><span><b>${esc(x.t)}</b>${x.a?`<small>${esc(x.a)}</small>`:''}</span></label>`).join('')}</div>
     <p class="help">${tr('The lyrics go with the songs, including your own fixes. Your notes stay private.')}</p>
-    <div class="acts"><button class="tbtn primary" id="sLink">${tr('Send link')}</button><button class="tbtn" id="sFile">${tr('Send as file')}</button></div>
-    <div id="sOut" class="help"></div></div>`,()=>{
+    <div class="acts"><button class="tbtn primary" id="sFile">${tr('Send file')}</button></div>
+    <p class="help">${tr('Pick Viber, WhatsApp or Messenger, then the person. They save the file and open it with Load a file.')}</p></div>`,()=>{
     const boxes=[...$('sheetHost').querySelectorAll('.pk input')];
     const keep=()=>new Set(boxes.filter(b=>b.checked).map(b=>+b.dataset.i));
-    const payload=()=>{ prefs.name=senderName($('sName').value); savePrefs();
-      return Object.assign(makeLyricsFile([pickSongs(g,keep())],x=>lyricsOf(x).text,today()),{from:prefs.name}); };
-    // build the link ahead of the tap: phones only open the share menu straight from a tap
-    const prep=async()=>{ const my=++seq; ready=null; if(!keep().size){ $('sOut').textContent=''; return; }
-      $('sOut').textContent=tr('Preparing the link…');
-      const p=payload(), code=await packShare(p); if(my!==seq) return;
-      const n=gigSongs(p.gigs[0]).length, url=location.origin+location.pathname+'#get='+code;
-      const text=tr('{0} sent you the lyrics for “{1}” ({2}). Open the link to add them to Gig Lyrics:',p.from||tr('A bandmate'),g.name,songsN(n));
-      ready={url,text}; $('sOut').textContent=url.length>LINK_LONG?tr('This link is long ({0} characters). If it arrives cut off, use Send as file.',url.length):''; };
-    boxes.forEach(b=>b.onchange=prep); $('sName').onchange=prep;
-    $('sAll').onclick=()=>{ boxes.forEach(b=>b.checked=true); prep(); };
-    $('sNone').onclick=()=>{ boxes.forEach(b=>b.checked=false); prep(); };
-    $('sLink').onclick=()=>{
+    $('sAll').onclick=()=>boxes.forEach(b=>b.checked=true);
+    $('sNone').onclick=()=>boxes.forEach(b=>b.checked=false);
+    $('sFile').onclick=()=>{
       if(!keep().size){ toast(tr('Pick at least one song')); return; }
-      if(!ready){ toast(tr('Preparing the link…')); return; }
-      if(navigator.share&&mobile()){ navigator.share({title:g.name,text:ready.text,url:ready.url}).catch(()=>{}); return; }
-      const msg=ready.text+'\n'+ready.url;
-      $('sOut').innerHTML=`${tr('Copy this message and send it:')}<textarea class="msg" id="sMsg" readonly>${esc(msg)}</textarea>`;
-      $('sMsg').select();
-      try{ navigator.clipboard.writeText(msg).then(()=>toast(tr('Link copied. Paste it in Viber, WhatsApp or Messenger.'),2600),()=>{}); }catch(e){}
+      prefs.name=senderName($('sName').value); savePrefs();
+      downloadJSON(fileName(g.name),Object.assign(makeLyricsFile([pickSongs(g,keep())],x=>lyricsOf(x).text,today()),{from:prefs.name}));
     };
-    $('sFile').onclick=()=>{ if(!keep().size){ toast(tr('Pick at least one song')); return; } downloadJSON(fileName(g.name),payload()); };
-    prep();
   });
 }
+// Links sent with an earlier version (#get=…) still open.
 async function receiveLink(code){
   history.replaceState(null,'',location.pathname+location.search);   // a refresh won't ask again
   route();

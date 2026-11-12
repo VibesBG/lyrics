@@ -96,17 +96,20 @@ run([
  ['EX new gig removes example', async()=>{ const d=await open('');
    d.querySelector('[data-act="newgig"]').click(); await sleep(200); frame.contentDocument.getElementById('doneGig').click(); await sleep(200);
    ok('example gone', !frame.contentDocument.querySelector('.gig[data-gig="example"]')); ok('welcome gone', !frame.contentDocument.getElementById('welcome')); }],
- ['LS send picks songs and carries my lyric fix, not my notes', async()=>{ const P2=Object.assign({},V1,{v:2});
+ ['LS send makes a file with the picked songs and my lyric fix, not my notes', async()=>{ const P2=Object.assign({},V1,{v:2});
    const d=await open('#g-mybar',{'ly-pack':P2,'ly-seenWelcome':true,'ly-edit:songtwo':'"My fixed line"','ly-note:songone':'"secret"'});
+   const w=frame.contentWindow; let got=null; w.downloadJSON=(name,obj)=>{ got={name,obj}; };
    d.querySelector('[data-act="sendgig"]').click(); await sleep(150);
-   const boxes=d.querySelectorAll('.pk input'); ok('two songs listed', boxes.length===2, boxes.length);
-   boxes[0].checked=false; boxes[0].dispatchEvent(new Event('change'));
-   d.getElementById('sName').value='Дарин'; d.getElementById('sName').dispatchEvent(new Event('change')); await sleep(300);
-   d.getElementById('sLink').click(); await sleep(150);
-   const msg=d.getElementById('sMsg'); ok('message shown', !!msg); const w=frame.contentWindow;
-   const o=await w.unpackShare(msg.value.split('#get=')[1]);
-   ok('only Song Two', o.gigs[0].sets[0].songs.map(x=>x.t).join()==='Song Two', o.gigs[0]);
-   ok('my fixed lyrics travel', Object.values(o.texts).join()==='My fixed line', o.texts); ok('notes stay', !JSON.stringify(o).includes('secret')); ok('from', o.from==='Дарин'); }],
+   const boxes=d.querySelectorAll('.pk input'); ok('two songs listed', boxes.length===2, boxes.length); ok('no link button', !d.getElementById('sLink'));
+   boxes[0].checked=false; d.getElementById('sName').value='Дарин'; d.getElementById('sFile').click(); await sleep(100);
+   const o=got&&got.obj; ok('file made', !!o); ok('file name', got&&got.name==='Friday Bar.lyrics.json', got&&got.name);
+   ok('only Song Two', o&&o.gigs[0].sets[0].songs.map(x=>x.t).join()==='Song Two', o&&o.gigs[0]);
+   ok('my fixed lyrics travel', o&&Object.values(o.texts).join()==='My fixed line', o&&o.texts); ok('notes stay', !JSON.stringify(o).includes('secret')); ok('from', o&&o.from==='Дарин');
+   ok('loads back as a lyrics file', w.validateLyricsFile(JSON.parse(JSON.stringify(o))).ok); }],
+ ['LS a sent file asks before adding', async()=>{ const d=await open('#g-x',{'ly-seenWelcome':true}); const w=frame.contentWindow;
+   w.importText(JSON.stringify(Object.assign({},V1,{v:2,from:'Йонко'}))); await sleep(100);
+   const h=d.querySelector('.sheet h3'); ok('from Йонко', h&&h.textContent.includes('Йонко'), h&&h.textContent);
+   d.getElementById('rAdd').click(); await sleep(200); ok('added', JSON.parse(localStorage.getItem('ly-pack')||'{"gigs":[]}').gigs.length===1); }],
  ['LS opening a link adds the gig and lyrics', async()=>{ await open('',{'ly-seenWelcome':true}); const w=frame.contentWindow;
    const code=await w.packShare(Object.assign({},V1,{v:2,from:'Дарин'}));
    const d=await open('#get='+code,{'ly-seenWelcome':true}); await sleep(200);
