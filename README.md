@@ -31,12 +31,13 @@ The chorus goes here
 - Auto-scroll, swipe between songs, and works with a Bluetooth page-turner pedal
 - Search by title or by any line of the lyrics, across all gigs
 - Notes per song, mark songs as sung
+- **↗ Send** a gig to a singer as a link (Viber, WhatsApp, Messenger): pick only the songs they sing. Send it again to update their copy
 - Stage (dark) and Daylight looks, keeps the screen on
 - English and Bulgarian
 
 ## Your data
 
-Everything you add stays on your own device. Nothing is sent anywhere, and no lyrics are stored on this website. Use **Save gig to file** to keep a backup or send a gig (with its lyrics) to a bandmate, and **Load a file** to open one.
+Everything you add stays on your own device. Nothing is sent anywhere, and no lyrics are stored on this website. A **↗ Send** link carries the gig and its lyrics inside the link itself (after the `#`), so it goes straight from your phone to theirs and never through this website. Long gigs make long links: if one arrives cut off, use **Send as file**. Use **Save gig to file** to keep a backup, and **Load a file** to open one.
 
 ## For developers
 

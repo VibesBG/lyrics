@@ -96,5 +96,35 @@ run([
  ['EX new gig removes example', async()=>{ const d=await open('');
    d.querySelector('[data-act="newgig"]').click(); await sleep(200); frame.contentDocument.getElementById('doneGig').click(); await sleep(200);
    ok('example gone', !frame.contentDocument.querySelector('.gig[data-gig="example"]')); ok('welcome gone', !frame.contentDocument.getElementById('welcome')); }],
+ ['LS send picks songs and carries my lyric fix, not my notes', async()=>{ const P2=Object.assign({},V1,{v:2});
+   const d=await open('#g-mybar',{'ly-pack':P2,'ly-seenWelcome':true,'ly-edit:songtwo':'"My fixed line"','ly-note:songone':'"secret"'});
+   d.querySelector('[data-act="sendgig"]').click(); await sleep(150);
+   const boxes=d.querySelectorAll('.pk input'); ok('two songs listed', boxes.length===2, boxes.length);
+   boxes[0].checked=false; boxes[0].dispatchEvent(new Event('change'));
+   d.getElementById('sName').value='Дарин'; d.getElementById('sName').dispatchEvent(new Event('change')); await sleep(300);
+   d.getElementById('sLink').click(); await sleep(150);
+   const msg=d.getElementById('sMsg'); ok('message shown', !!msg); const w=frame.contentWindow;
+   const o=await w.unpackShare(msg.value.split('#get=')[1]);
+   ok('only Song Two', o.gigs[0].sets[0].songs.map(x=>x.t).join()==='Song Two', o.gigs[0]);
+   ok('my fixed lyrics travel', Object.values(o.texts).join()==='My fixed line', o.texts); ok('notes stay', !JSON.stringify(o).includes('secret')); ok('from', o.from==='Дарин'); }],
+ ['LS opening a link adds the gig and lyrics', async()=>{ await open('',{'ly-seenWelcome':true}); const w=frame.contentWindow;
+   const code=await w.packShare(Object.assign({},V1,{v:2,from:'Дарин'}));
+   const d=await open('#get='+code,{'ly-seenWelcome':true}); await sleep(200);
+   const h=d.querySelector('.sheet h3'); ok('asks first', h&&h.textContent.includes('Дарин'), h&&h.textContent); ok('nothing saved yet', !localStorage.getItem('ly-pack'));
+   d.getElementById('rAdd').click(); await sleep(200);
+   const pk=JSON.parse(localStorage.getItem('ly-pack')||'{}'); ok('gig added', pk.gigs&&pk.gigs.length===1&&pk.gigs[0].id==='mybar', pk.gigs);
+   frame.contentWindow.location.hash='mybar-1'; await sleep(200);
+   ok('lyrics show', /First line here/.test((frame.contentDocument.querySelector('.lyrics')||{}).textContent||'')); }],
+ ['LS resending updates, keeps my notes and fixes', async()=>{ await open('',{'ly-seenWelcome':true}); const w=frame.contentWindow;
+   const newer=JSON.parse(JSON.stringify(Object.assign({},V1,{v:2,from:'Дарин'}))); newer.texts.t1='New words';
+   const code=await w.packShare(newer);
+   const d=await open('#get='+code,{'ly-seenWelcome':true,'ly-pack':Object.assign({},V1,{v:2}),'ly-note:songone':'"mine"','ly-edit:songtwo':'"my fix"'}); await sleep(200);
+   const b=d.getElementById('rAdd'); ok('says update', b&&/Update/.test(b.textContent), b&&b.textContent); b.click(); await sleep(200);
+   const pk=JSON.parse(localStorage.getItem('ly-pack')); ok('still one gig', pk.gigs.length===1, pk.gigs.length);
+   ok('note kept', localStorage.getItem('ly-note:songone')==='"mine"'); ok('fix kept', localStorage.getItem('ly-edit:songtwo')==='"my fix"');
+   frame.contentWindow.location.hash='mybar-1'; await sleep(200);
+   ok('new words', /New words/.test((frame.contentDocument.querySelector('.lyrics')||{}).textContent||'')); }],
+ ['LS broken link says so', async()=>{ const d=await open('#get=zBROKEN',{'ly-seenWelcome':true}); await sleep(200);
+   const h=d.querySelector('.sheet h3'); ok('error sheet', h&&/Link not working/.test(h.textContent), h&&h.textContent); }],
 ]);
 </script>

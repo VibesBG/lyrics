@@ -152,6 +152,17 @@ mark{background:var(--accent-soft);color:inherit;border-radius:3px;padding:0 2px
 .toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:30;max-width:90vw;text-align:center;
   background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:14px;font-size:14px;font-weight:700;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.on{opacity:1}
+.linkbtn{background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;cursor:pointer;font-weight:700}
+.pick{display:grid;gap:4px;max-height:38vh;overflow:auto;padding:2px}
+.pk{display:flex;align-items:center;gap:12px;min-height:48px;padding:6px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);cursor:pointer;color:var(--fg);font-weight:500;font-size:16px}
+.form .pk input{width:22px;height:22px;min-height:0;flex:none;accent-color:var(--accent)}
+.pk span{min-width:0}
+.pk small{display:block;color:var(--muted);font-size:12px}
+.pickhead{display:flex;align-items:center;justify-content:space-between;gap:12px;color:var(--muted);font-size:14px;font-weight:700}
+.pickhead span{display:flex;gap:14px}
+.got{margin:0 0 12px;padding-left:20px;color:var(--fg)}
+.got li{margin:2px 0}
+.msg{width:100%;min-height:90px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--fg);padding:8px;font:inherit;font-size:14px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style></head><body>
 <div class="wrap">
@@ -255,6 +266,35 @@ function unflattenGig(items){
   return sets;
 }
 
+/* ---------- share links ---------- */
+// A share link is <app address>#get=<code>. Everything after # stays on the phones: GitHub never sees it.
+// code = "z" + base64url(deflate(JSON)), or "j" + base64url(JSON) where the browser can't compress.
+function b64uEnc(bytes){ let s=''; for(let i=0;i<bytes.length;i+=0x8000) s+=String.fromCharCode.apply(null,bytes.subarray(i,i+0x8000));
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function b64uDec(s){ const b=atob(String(s).replace(/-/g,'+').replace(/_/g,'/').replace(/\s+/g,'')); const out=new Uint8Array(b.length); for(let i=0;i<b.length;i++) out[i]=b.charCodeAt(i); return out; }
+const pipeBytes=(bytes,stream)=>new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer().then(b=>new Uint8Array(b));
+async function packShare(obj,noZip){
+  const raw=new TextEncoder().encode(JSON.stringify(obj));
+  if(!noZip&&typeof CompressionStream==='function'){ try{ return 'z'+b64uEnc(await pipeBytes(raw,new CompressionStream('deflate-raw'))); }catch(e){} }
+  return 'j'+b64uEnc(raw);
+}
+async function unpackShare(code){
+  code=String(code||''); const kind=code[0]; let bytes=b64uDec(code.slice(1));
+  if(kind==='z'){ if(typeof DecompressionStream!=='function') throw new Error('old browser'); bytes=await pipeBytes(bytes,new DecompressionStream('deflate-raw')); }
+  else if(kind!=='j') throw new Error('not a share code');
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+// The part of a link after #get= (the link may have been pasted with text around it).
+const shareCodeOf=text=>{ const m=String(text||'').match(/#get=([A-Za-z0-9_-]+)/); return m?m[1]:null; };
+const senderName=v=>typeof v==='string'?v.replace(/[\u0000-\u001f<>]/g,'').trim().slice(0,40):'';
+// Keep only the chosen songs (by position in the gig); sets left empty are dropped.
+function pickSongs(gig,keep){
+  let i=0;
+  return {id:gig.id,name:gig.name,sets:gig.sets.map(s=>({name:s.name,songs:s.songs.filter(x=>(x.title===undefined&&x.t===undefined)?true:keep.has(i++))}))
+    .map(s=>({name:s.name,songs:s.songs.filter((x,k,a)=>!(x.break!==undefined&&(k===0||k===a.length-1||a[k-1].break!==undefined)))}))
+    .filter(s=>s.songs.some(x=>x.title!==undefined||x.t!==undefined))};
+}
+
 const $=id=>document.getElementById(id);
 const store={get(k,d){try{const v=localStorage.getItem('ly-'+k);return v===null?d:JSON.parse(v)}catch(e){return d}},
              set(k,v){try{localStorage.setItem('ly-'+k,JSON.stringify(v));return true}catch(e){return false}},
@@ -334,7 +374,19 @@ const BG={
  'Loaded 1 gig':'Заредено е 1 участие','Loaded {0} gigs':'Заредени са {0} участия','That isn’t a lyrics file':'Това не е файл с текстове','Already on this device':'Вече е на това устройство',
  'This gig is already here: {0}. Replace it with the file, or keep both?':'Това участие вече е тук: {0}. Да го заменя ли с файла или да пазя и двете?',
  'These gigs are already here: {0}. Replace them with the file, or keep both?':'Тези участия вече са тук: {0}. Да ги заменя ли с файла или да пазя и двете?',
- 'Replace':'Замени','Keep both':'Пази и двете','Couldn’t read that file':'Не можах да прочета файла'
+ 'Replace':'Замени','Keep both':'Пази и двете','Couldn’t read that file':'Не можах да прочета файла',
+ '↗ Send':'↗ Изпрати','Send “{0}”':'Изпрати „{0}“','Your name':'Твоето име','So they know who sent it':'За да знаят кой го праща',
+ 'Songs to send':'Песни за изпращане','All':'Всички','None':'Нито една','Send link':'Изпрати линк','Send as file':'Изпрати като файл','Pick at least one song':'Избери поне една песен',
+ 'The lyrics go with the songs, including your own fixes. Your notes stay private.':'Текстовете отиват с песните, заедно с твоите поправки. Бележките ти остават лични.',
+ 'This link is long ({0} characters). If it arrives cut off, use Send as file.':'Линкът е дълъг ({0} знака). Ако пристигне отрязан, използвай „Изпрати като файл“.',
+ 'Preparing the link…':'Подготвям линка…','Link copied. Paste it in Viber, WhatsApp or Messenger.':'Линкът е копиран. Постави го във Viber, WhatsApp или Messenger.',
+ 'Copy this message and send it:':'Копирай това съобщение и го изпрати:','A bandmate':'Колега',
+ '{0} sent you the lyrics for “{1}” ({2}). Open the link to add them to Gig Lyrics:':'{0} ти изпрати текстовете за „{1}“ ({2}). Отвори линка, за да ги добавиш в Gig Lyrics:',
+ '{0} sent you a gig':'{0} ти изпрати участие','New gig':'Ново участие','Add it':'Добави го','Update it':'Обнови го','and {0} more':'и още {0}',
+ 'You already have this gig. Updating it keeps your notes and ✓ marks.':'Вече имаш това участие. Обновяването пази бележките и отметките ти.',
+ 'Lyrics you fixed yourself stay as you fixed them.':'Текстовете, които си поправил сам, остават с твоите поправки.',
+ 'Link not working':'Линкът не работи','This link is broken or was cut off. Ask for it again, or ask for the file.':'Линкът е повреден или отрязан. Поискай го отново или поискай файла.',
+ 'Update your browser to open this link, or ask for the file.':'Обнови браузъра си, за да отвориш този линк, или поискай файла.'
 };
 function tr(s,...a){ let r=(prefs.lang==='bg'&&BG[s])||s; a.forEach((v,i)=>{ r=r.split('{'+i+'}').join(v); }); return r; }
 const songsN=n=>n===1?tr('1 song'):tr('{0} songs',n);
@@ -351,6 +403,7 @@ const HELP={en:[
  ['On stage','▶ scrolls the lyrics by themselves (− / + for speed). Swipe left or right for the next or previous song. A Bluetooth page-turner pedal works too (arrow keys or Page Up / Page Down). In Aa: text size, Stage/Daylight, two columns, keep the screen on.'],
  ['Find a song fast','The search box finds a song by its title or by any line of its lyrics, across all gigs.'],
  ['Add to Home Screen','iPhone/iPad: open in Safari, tap Share, then “Add to Home Screen”. Android: Chrome menu ⋮, then “Add to Home screen”. After the first visit it works without internet.'],
+ ['Send to a singer','Open a gig and tap ↗ Send. Pick the songs (for example only the ones they sing), then send the link in Viber, WhatsApp or Messenger. When they open it, the gig and its lyrics are added to their Gig Lyrics. Send it again after a change and their copy is updated.'],
  ['Back up and share','In a gig, tap “Save gig to file” to back it up or send it to a bandmate. “Load a file” puts it on another phone. Aa › My gigs › Save all makes one backup of everything.'],
  ['Your data','Your gigs, lyrics and notes are saved only on this device. Nothing is sent anywhere. Clearing the browser data deletes them, so keep a backup file.']
 ],bg:[
@@ -359,6 +412,7 @@ const HELP={en:[
  ['На сцената','▶ скролва текста сам (− / + за скорост). Плъзни наляво или надясно за следваща или предишна песен. Работи и Bluetooth педал за страници (стрелки или Page Up / Page Down). В Aa: размер на текста, Сцена/Ден, две колони, екранът да не гасне.'],
  ['Намери песен бързо','Търсачката намира песен по заглавие или по който и да е ред от текста, във всички участия.'],
  ['Добави на началния екран','iPhone/iPad: отвори в Safari, натисни Сподели, после „Добави към началния екран“. Android: менюто ⋮ в Chrome, после „Добави към началния екран“. След първото отваряне работи и без интернет.'],
+ ['Изпрати на певец','Отвори участие и натисни ↗ Изпрати. Избери песните (например само тези, които пее), после прати линка във Viber, WhatsApp или Messenger. Когато го отвори, участието и текстовете се добавят в неговия Gig Lyrics. Прати го пак след промяна и копието му се обновява.'],
  ['Резервно копие и споделяне','В участие натисни „Запази във файл“, за да го пазиш или пратиш на колега. „Зареди файл“ го слага на друг телефон. Aa › Моите участия › Запази всички прави едно копие на всичко.'],
  ['Твоите данни','Участията, текстовете и бележките се пазят само на това устройство. Нищо не се изпраща никъде. Ако изчистиш данните на браузъра, те се трият, затова пази резервен файл.']
 ]};
@@ -389,7 +443,7 @@ function showGigEditor(id){
     <label class="fl">${tr('Gig name')}<input class="find" id="gigName" value="${esc(g.name)}" maxlength="40" autocomplete="off"></label>
     <div class="items">${items.map(row).join('')||`<p class="empty">${tr('No songs yet. Add your first song.')}</p>`}</div>
     <div class="acts"><button class="tbtn primary" id="addSong">${tr('＋ Song')}</button><button class="tbtn" id="addSet">${tr('＋ Set')}</button></div>
-    <div class="acts"><button class="tbtn" id="saveGigFile">${tr('Save gig to file')}</button><button class="tbtn" id="delGig">${tr('Delete gig')}</button><button class="tbtn primary" id="doneGig">${tr('Done')}</button></div></div>`;
+    <div class="acts"><button class="tbtn" id="sendGig">${tr('↗ Send')}</button><button class="tbtn" id="saveGigFile">${tr('Save gig to file')}</button><button class="tbtn" id="delGig">${tr('Delete gig')}</button><button class="tbtn primary" id="doneGig">${tr('Done')}</button></div></div>`;
   const put=list=>{ if(saveLib(withGig(id,gg=>{ gg.sets=unflattenGig(list); }))) showGigEditor(id); };
   $('gigName').onchange=e=>{ const v=e.target.value.trim()||tr('My gig'); if(saveLib(withGig(id,gg=>{ gg.name=v; }))) toast(tr('Saved')); };
   view.querySelectorAll('.itset').forEach(inp=>inp.onchange=()=>{ items[+inp.dataset.i].name=inp.value.trim(); put(items); });
@@ -401,6 +455,7 @@ function showGigEditor(id){
   $('delGig').onclick=()=>{ if(!confirm(tr('Delete the gig “{0}” from this device?',g.name))) return; const lib=plainLib(LIBRARY()); lib.gigs=lib.gigs.filter(x=>x.id!==id); if(saveLib(lib)){ store.set('gig',GIGS[0].id); location.hash=''; toast(tr('Gig deleted')); } };
   $('doneGig').onclick=()=>{ location.hash='g-'+id; };
   $('saveGigFile').onclick=()=>saveFile([gigById(id)]);
+  $('sendGig').onclick=()=>openSend(id);
 }
 // n = position of the song in the gig (0-based, across sets); -1 = new song at the end
 function openSongEditor(gigId,n){
@@ -464,6 +519,7 @@ function finishImport(file,mode){
 function importText(text){
   let o=null; try{ o=JSON.parse(text); }catch(e){}
   const v=validateLyricsFile(o); if(!v.ok){ toast(tr('That isn’t a lyrics file'),3500); return; }
+  if(o.from!==undefined){ offerFile(v.file,senderName(o.from)); return; }   // a file someone sent with ↗ Send
   const clash=importConflicts(LIBRARY().gigs,v.file.gigs);
   if(!clash.length){ finishImport(v.file,'keep'); return; }
   const names=clash.map(id=>gigById(id).name);
@@ -494,7 +550,7 @@ function showList(){
     <div class="acts"><button class="tbtn primary" data-act="newgig">${tr('Make my gig')}</button><button class="tbtn" data-act="load">${tr('Load a file')}</button><button class="tbtn" data-act="help">${tr('Help')}</button><button class="tbtn" data-act="gotit" id="wGot">${tr('Got it')}</button></div></div>`
     :mine?'':`<div class="welcome" id="emptyCard"><h2>${tr('Make it yours')}</h2><p>${tr('This is an example gig. Make your own gig and type or paste your lyrics in, or load a lyrics file someone sent you.')}</p>
     <div class="acts"><button class="tbtn primary" data-act="newgig">${tr('Make your own gig')}</button><button class="tbtn" data-act="load">${tr('Load a file')}</button></div></div>`);
-  const acts=mine?`<div class="acts listacts"><button class="tbtn" data-act="newgig">${tr('＋ New gig')}</button>${GIG.ex?'':`<button class="tbtn" data-act="editgig">${tr('✎ Edit gig')}</button>`}<button class="tbtn" data-act="load">${tr('Load a file')}</button></div>`:'';
+  const acts=mine?`<div class="acts listacts"><button class="tbtn" data-act="newgig">${tr('＋ New gig')}</button>${GIG.ex?'':`<button class="tbtn" data-act="editgig">${tr('✎ Edit gig')}</button><button class="tbtn" data-act="sendgig">${tr('↗ Send')}</button>`}<button class="tbtn" data-act="load">${tr('Load a file')}</button></div>`:'';
   const played=GIG.songs.filter(x=>store.get(pkey(x),false)).length;
   view.innerHTML='<div class="list">'+cards+chips+acts+`<div class="findrow"><input class="find" id="find" type="search" placeholder="${tr('Find a song or a line of lyrics')}" value="${esc(query)}" autocomplete="off">${played?`<button class="tbtn" data-act="clearplayed">${tr('Clear ✓')} <small>${played}</small></button>`:''}</div><div id="listBody"></div></div>`;
   listBody();
@@ -563,6 +619,7 @@ view.addEventListener('click',e=>{
     case 'gotit': store.set('seenWelcome',true); showList(); break;
     case 'newgig': newGig(); break;
     case 'editgig': location.hash='edit-'+GIG.id; break;
+    case 'sendgig': openSend(GIG.id); break;
     case 'clearplayed': GIG.songs.forEach(s=>store.del(pkey(s))); toast(tr('Cleared')); showList(); break;
     case 'played': if(!store.set(pkey(x),!store.get(pkey(x),false))) warnSave(); rerender(); break;
     case 'edit': if(!GIG.ex) openSongEditor(GIG.id,cur); break;
@@ -641,8 +698,68 @@ $('slower').onclick=()=>{prefs.speed=Math.max(1,prefs.speed-1);savePrefs();syncS
 $('faster').onclick=()=>{prefs.speed=Math.min(15,prefs.speed+1);savePrefs();syncScroll()};
 syncScroll();
 
+/* ---------- send to a singer (link) ---------- */
+const LINK_LONG=6000, mobile=()=>/iPhone|iPad|Android/i.test(navigator.userAgent);
+const gigSongs=g=>{ const a=[]; g.sets.forEach(s=>s.songs.forEach(x=>a.push(x))); return a; };
+function openSend(gigId){
+  const g=GIGS.find(x=>x.id===gigId); if(!g||g.ex) return;
+  const songs=gigSongs(g); let ready=null, seq=0;
+  openSheet(tr('Send “{0}”',g.name),`<div class="form">
+    <label>${tr('Your name')}<input id="sName" value="${esc(prefs.name||'')}" maxlength="40" autocomplete="name" placeholder="${tr('So they know who sent it')}"></label>
+    <div class="pickhead">${tr('Songs to send')}<span><button class="linkbtn" id="sAll">${tr('All')}</button><button class="linkbtn" id="sNone">${tr('None')}</button></span></div>
+    <div class="pick">${songs.map((x,i)=>`<label class="pk"><input type="checkbox" data-i="${i}" checked><span><b>${esc(x.t)}</b>${x.a?`<small>${esc(x.a)}</small>`:''}</span></label>`).join('')}</div>
+    <p class="help">${tr('The lyrics go with the songs, including your own fixes. Your notes stay private.')}</p>
+    <div class="acts"><button class="tbtn primary" id="sLink">${tr('Send link')}</button><button class="tbtn" id="sFile">${tr('Send as file')}</button></div>
+    <div id="sOut" class="help"></div></div>`,()=>{
+    const boxes=[...$('sheetHost').querySelectorAll('.pk input')];
+    const keep=()=>new Set(boxes.filter(b=>b.checked).map(b=>+b.dataset.i));
+    const payload=()=>{ prefs.name=senderName($('sName').value); savePrefs();
+      return Object.assign(makeLyricsFile([pickSongs(g,keep())],x=>lyricsOf(x).text,today()),{from:prefs.name}); };
+    // build the link ahead of the tap: phones only open the share menu straight from a tap
+    const prep=async()=>{ const my=++seq; ready=null; if(!keep().size){ $('sOut').textContent=''; return; }
+      $('sOut').textContent=tr('Preparing the link…');
+      const p=payload(), code=await packShare(p); if(my!==seq) return;
+      const n=gigSongs(p.gigs[0]).length, url=location.origin+location.pathname+'#get='+code;
+      const text=tr('{0} sent you the lyrics for “{1}” ({2}). Open the link to add them to Gig Lyrics:',p.from||tr('A bandmate'),g.name,songsN(n));
+      ready={url,text}; $('sOut').textContent=url.length>LINK_LONG?tr('This link is long ({0} characters). If it arrives cut off, use Send as file.',url.length):''; };
+    boxes.forEach(b=>b.onchange=prep); $('sName').onchange=prep;
+    $('sAll').onclick=()=>{ boxes.forEach(b=>b.checked=true); prep(); };
+    $('sNone').onclick=()=>{ boxes.forEach(b=>b.checked=false); prep(); };
+    $('sLink').onclick=()=>{
+      if(!keep().size){ toast(tr('Pick at least one song')); return; }
+      if(!ready){ toast(tr('Preparing the link…')); return; }
+      if(navigator.share&&mobile()){ navigator.share({title:g.name,text:ready.text,url:ready.url}).catch(()=>{}); return; }
+      const msg=ready.text+'\n'+ready.url;
+      $('sOut').innerHTML=`${tr('Copy this message and send it:')}<textarea class="msg" id="sMsg" readonly>${esc(msg)}</textarea>`;
+      $('sMsg').select();
+      try{ navigator.clipboard.writeText(msg).then(()=>toast(tr('Link copied. Paste it in Viber, WhatsApp or Messenger.'),2600),()=>{}); }catch(e){}
+    };
+    $('sFile').onclick=()=>{ if(!keep().size){ toast(tr('Pick at least one song')); return; } downloadJSON(fileName(g.name),payload()); };
+    prep();
+  });
+}
+async function receiveLink(code){
+  history.replaceState(null,'',location.pathname+location.search);   // a refresh won't ask again
+  route();
+  let o=null, old=false; try{ o=await unpackShare(code); }catch(e){ old=e&&e.message==='old browser'; }
+  const v=validateLyricsFile(o);
+  if(!v.ok){ openSheet(tr('Link not working'),`<p class="help">${tr(old?'Update your browser to open this link, or ask for the file.':'This link is broken or was cut off. Ask for it again, or ask for the file.')}</p>`); return; }
+  offerFile(v.file,senderName(o.from));
+}
+function offerFile(file,from){
+  const g=file.gigs[0], titles=gigSongs(g).map(x=>x.t), have=file.gigs.some(x=>gigById(x.id));
+  openSheet(from?tr('{0} sent you a gig',from):tr('New gig'),`<p class="help" style="margin-bottom:8px"><b style="color:var(--fg);font-size:18px">${esc(g.name)}</b> · ${songsN(titles.length)}</p>
+    <ul class="got">${titles.slice(0,8).map(t=>`<li>${esc(t)}</li>`).join('')}${titles.length>8?`<li>${tr('and {0} more',titles.length-8)}</li>`:''}</ul>
+    ${have?`<p class="help">${tr('You already have this gig. Updating it keeps your notes and ✓ marks.')} ${tr('Lyrics you fixed yourself stay as you fixed them.')}</p>`:''}
+    <div class="acts"><button class="tbtn primary" id="rAdd">${have?tr('Update it'):tr('Add it')}</button><button class="tbtn" id="rCancel">${tr('Cancel')}</button></div>`,()=>{
+    $('rAdd').onclick=()=>finishImport(file,have?'replace':'keep');
+    $('rCancel').onclick=closeSheet;
+  });
+}
+
 /* ---------- navigation ---------- */
 function route(){
+  const code=shareCodeOf(location.hash); if(code){ receiveLink(code); return; }
   closeSheet(); editing=null;
   const h=location.hash.slice(1); let m;
   if((m=h.match(/^edit-([a-z0-9]+)$/))&&gigById(m[1])){ useGig(m[1]); showGigEditor(m[1]); return; }
