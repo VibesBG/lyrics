@@ -88,7 +88,7 @@ mark{background:var(--accent-soft);color:inherit;border-radius:3px;padding:0 2px
 .song{padding-block:14px 150px}
 .tb{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;align-items:center}
 .tb .meta{color:var(--muted);font-size:14px;margin-right:auto}
-.lyrics{font-size:calc(22px*var(--scale));line-height:1.5;max-width:46ch}
+.lyrics{font-size:calc(22px*var(--scale));line-height:1.5;max-width:46ch;overflow-wrap:anywhere}
 .lyrics.cols{max-width:none;column-count:2;column-gap:48px}
 .st{margin:0 0 .9em;padding:.15em .6em;border-radius:10px;break-inside:avoid}
 .st .l{display:block;padding-left:1.1em;text-indent:-1.1em;min-height:1em}
@@ -109,7 +109,7 @@ mark{background:var(--accent-soft);color:inherit;border-radius:3px;padding:0 2px
 .dock-in{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:1fr auto 1fr;gap:8px}
 .nav{min-height:60px;border-radius:12px;border:1px solid var(--line);background:var(--panel);cursor:pointer;display:flex;flex-direction:column;justify-content:center;padding:6px 14px;text-align:left;min-width:0}
 .nav.next{text-align:right;background:var(--accent-soft);border-color:var(--accent)}
-.nav small{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.nav small{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nav b{font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nav:disabled{opacity:.35;cursor:default}
 .scroller{display:flex;align-items:center;border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}
@@ -136,6 +136,8 @@ mark{background:var(--accent-soft);color:inherit;border-radius:3px;padding:0 2px
 .help{color:var(--muted);font-size:14px;margin:6px 0 12px}
 .acts{display:flex;flex-wrap:wrap;gap:8px}
 .listacts .tbtn{height:44px}
+.backup{display:flex;gap:10px;align-items:center;margin:0 0 12px;padding:10px 12px;border:1px solid var(--accent);border-radius:12px;font-size:14px;color:var(--muted)}
+.backup span{flex:1;min-width:0}.backup .tbtn{flex:none}
 .items{display:grid;gap:6px}
 .it{display:flex;gap:6px;align-items:center}
 .ittitle{flex:1;min-width:0;text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:12px;min-height:52px;padding:6px 12px;cursor:pointer}
@@ -193,11 +195,20 @@ mark{background:var(--accent-soft);color:inherit;border-radius:3px;padding:0 2px
 <script>
 /* Pure logic shared by the app and the tests. No DOM access here. */
 const norm=t=>String(t).toLowerCase().replace(/[’`]/g,"'").replace(/[^\p{L}\p{N}]/gu,'');
+// Search: ignore case, accents (й→и, ѝ→и, é→e), apostrophes (don’t = dont) and extra spaces.
+// Returns the folded text and, for each folded character, where it came from in the original.
+function foldMap(s){ let f='', map=[]; s=String(s);
+  for(let i=0;i<s.length;i++){ const c=s[i]; if(/['’‘`´]/.test(c)) continue;
+    const d=c.normalize('NFD').replace(/\p{M}/gu,'').toLowerCase(); if(/\s/.test(d)&&/\s$/.test(f)) continue;
+    for(const ch of d){ f+=/\s/.test(ch)?' ':ch; map.push(i); } }
+  return {f,map}; }
+const fold=s=>foldMap(s).f.trim();
 const stKey=s=>s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
 
 /* ---------- lyrics text -> stanzas ---------- */
 const LABEL_WORDS='chorus|verse|bridge|pre-?chorus|intro|outro|refrain|hook|interlude|coda|tag|припев|куплет|бридж|мост|интро|финал|рефрен';
-const LABEL=new RegExp('^\\[?\\s*(('+LABEL_WORDS+')(\\s*\\d+)?)\\s*\\]?\\s*:?$','i');
+// a label may carry a repeat: "Chorus x2", "Припев (2х)", "Chorus ×2"
+const LABEL=new RegExp('^\\[?\\s*(('+LABEL_WORDS+')(\\s*\\d+)?(\\s*\\(?\\s*(?:[xх×]\\s*\\d+|\\d+\\s*[xх×])\\s*\\)?)?)\\s*\\]?\\s*:?$','i');
 const CHORUSY=/^(chorus|refrain|hook|припев|рефрен)/i;
 function labelOf(line){
   const l=line.trim(); let m=l.match(LABEL); if(m) return m[1].replace(/\s+/g,' ');
@@ -241,6 +252,15 @@ function applyLyricsImport(lib,file,mode){
     let n=2; while(out.gigs.some(e=>e.id===g.id+n)) n++;
     g.id=g.id+n; g.name=g.name+' ('+n+')'; out.gigs.push(g);
   });
+  return out;
+}
+// Updating a gig from a file someone sent: their songs come in, and songs you have that
+// weren't in the file stay (added at the end), so a partial send never deletes anything.
+function keepMissing(local,incoming,tk){
+  const out=clone(incoming); if(!local) return out;
+  const have=new Set(); out.sets.forEach(s=>s.songs.forEach(x=>{ if(x[tk]!==undefined) have.add(x[tk]); }));
+  const extra=[]; local.sets.forEach(s=>s.songs.forEach(x=>{ if(x[tk]!==undefined&&!have.has(x[tk])){ have.add(x[tk]); extra.push(clone(x)); } }));
+  if(extra.length){ if(!out.sets.length) out.sets.push({name:'',songs:[]}); out.sets[out.sets.length-1].songs.push(...extra); }
   return out;
 }
 function makeLyricsFile(gigs,lyricsOf,today){
@@ -298,8 +318,10 @@ function pickSongs(gig,keep){
 
 const $=id=>document.getElementById(id);
 const store={get(k,d){try{const v=localStorage.getItem('ly-'+k);return v===null?d:JSON.parse(v)}catch(e){return d}},
-             set(k,v){try{localStorage.setItem('ly-'+k,JSON.stringify(v));return true}catch(e){return false}},
-             del(k){try{localStorage.removeItem('ly-'+k)}catch(e){}}};
+             set(k,v){try{localStorage.setItem('ly-'+k,JSON.stringify(v)); if(MINE.test(k)) localStorage.setItem('ly-dirty',String(Date.now())); return true}catch(e){return false}},
+             del(k){try{localStorage.removeItem('ly-'+k); if(MINE.test(k)) localStorage.setItem('ly-dirty',String(Date.now()))}catch(e){}}};
+const MINE=/^(pack|edit:|note:)/;   // your gigs, lyrics and notes: changes the reminder asks you to save to a file
+try{ navigator.storage&&navigator.storage.persist&&navigator.storage.persist(); }catch(e){}   // ask the phone not to clear our data
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 let tt; function toast(m,ms){const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('on'),ms||1800)}
 
@@ -311,12 +333,13 @@ Object.defineProperty(EXAMPLE.gig,'name',{get:()=>tr('Example gig')});
 const emptyLib=()=>({kind:'lyrics-pack',v:2,gigs:[],texts:{}});
 let PACK=store.get('pack',null); PACK=PACK&&Array.isArray(PACK.gigs)?sanitizeLib(PACK):null;
 const LIBRARY=()=>PACK||emptyLib();
-let GIGS=[], LIB={};
+let GIGS=[], LIB=Object.create(null);
+const own=(o,k)=>!!o&&typeof k==='string'&&Object.prototype.hasOwnProperty.call(o,k);   // a song called "constructor" is just a song
 function build(){
-  GIGS=[]; LIB={};
+  GIGS=[]; LIB=Object.create(null);
   const lib=LIBRARY();
   // canonical lyrics per title: first gig in the library that has it (files list the newest gig first)
-  lib.gigs.forEach(g=>g.sets.forEach(s=>s.songs.forEach(x=>{ const k=norm(x.t); if(!(k in LIB)&&lib.texts[x.x]) LIB[k]=lib.texts[x.x]; })));
+  lib.gigs.forEach(g=>g.sets.forEach(s=>s.songs.forEach(x=>{ const k=norm(x.t); if(!(k in LIB)&&own(lib.texts,x.x)) LIB[k]=lib.texts[x.x]; })));
   // the example gig steps aside once you have a gig of your own (Aa can bring it back)
   if(!lib.gigs.length||prefs.showExample) GIGS.push(EXAMPLE.gig);
   lib.gigs.forEach(g=>GIGS.push(g));
@@ -325,7 +348,7 @@ function build(){
 function lyricsOf(x){
   const ed=store.get('edit:'+norm(x.t),null); if(ed!==null) return {text:ed,edited:true};
   const texts=x.gig&&x.gig.ex?EXAMPLE.texts:LIBRARY().texts;
-  if(x.x&&texts[x.x]) return {text:texts[x.x]};
+  if(x.x&&own(texts,x.x)&&typeof texts[x.x]==='string') return {text:texts[x.x]};
   const k=norm(x.t); if(!(x.gig&&x.gig.ex)&&LIB[k]) return {text:LIB[k]};
   return {text:''};
 }
@@ -363,7 +386,7 @@ const BG={
  'Text size':'Размер на текста','Look':'Вид','Stage is dark, Daylight for sun':'Сцена е тъмно, Ден е за силно слънце','Stage':'Сцена','Daylight':'Ден','Two columns':'Две колони','Fits more of the song on a tablet in landscape':'Събира повече от песента на таблет в хоризонтален режим',
  'On':'Вкл','Off':'Изкл','Keep screen on':'Екранът да не гасне','While the app is open':'Докато приложението е отворено','Language':'Език',
  'Example gig':'Примерно участие','Show it next to your own gigs':'Показвай го до твоите участия','Show':'Показвай','Hide':'Скрий',
- 'My gigs':'Моите участия','Save all your gigs and lyrics to one file (backup), or load a file':'Запази всички участия и текстове в един файл (резервно копие) или зареди файл','Save all':'Запази всички','Load':'Зареди','How to use the app':'Как се ползва приложението','Open':'Отвори',
+ 'My gigs':'Моите участия','Save all your gigs and lyrics to one file (backup), or load a file':'Запази всички участия и текстове в един файл (резервно копие) или зареди файл','Save all':'Запази всички','Your changes are only on this phone. Save them to a file so you never lose them.':'Промените ти са само на този телефон. Запази ги във файл, за да не ги загубиш.','Load':'Зареди','How to use the app':'Как се ползва приложението','Open':'Отвори',
  'Can’t keep the screen on here — raise Auto-Lock in Settings':'Тук екранът не може да остане включен — увеличи автоматичното заключване в Настройки','Screen stays on':'Екранът остава включен','Screen lock not allowed here':'Не е позволено тук','Screen can turn off':'Екранът може да изгасне','End of song':'Край на песента',
  'Edit gig':'Редакция на участие','Set name':'Име на сет','Move up':'Нагоре','Move down':'Надолу','Remove':'Премахни','Gig name':'Име на участието','No songs yet. Add your first song.':'Още няма песни. Добави първата.',
  '＋ Song':'＋ Песен','＋ Set':'＋ Сет','Save gig to file':'Запази във файл','Delete gig':'Изтрий участието','Done':'Готово','My gig':'Моето участие','Saved':'Запазено','Set {0}':'Сет {0}',
@@ -380,7 +403,7 @@ const BG={
  'Songs to send':'Песни за изпращане','All':'Всички','None':'Нито една','Send file':'Изпрати файла','Pick at least one song':'Избери поне една песен',
  'The lyrics go with the songs, including your own fixes. Your notes stay private.':'Текстовете отиват с песните, заедно с твоите поправки. Бележките ти остават лични.','A bandmate':'Колега','Pick Viber, WhatsApp or Messenger, then the person. They save the file and open it with Load a file.':'Избери Viber, WhatsApp или Messenger и човека. Той запазва файла и го отваря със „Зареди файл“.',
  '{0} sent you a gig':'{0} ти изпрати участие','New gig':'Ново участие','Add it':'Добави го','Update it':'Обнови го','and {0} more':'и още {0}',
- 'You already have this gig. Updating it keeps your notes and ✓ marks.':'Вече имаш това участие. Обновяването пази бележките и отметките ти.',
+ 'Songs you have that aren’t in the file stay.':'Песните, които имаш, а ги няма във файла, остават.','You already have this gig. Updating it keeps your notes and ✓ marks.':'Вече имаш това участие. Обновяването пази бележките и отметките ти.',
  'Lyrics you fixed yourself stay as you fixed them.':'Текстовете, които си поправил сам, остават с твоите поправки.',
  'Link not working':'Линкът не работи','This link is broken or was cut off. Ask for it again, or ask for the file.':'Линкът е повреден или отрязан. Поискай го отново или поискай файла.',
  'Update your browser to open this link, or ask for the file.':'Обнови браузъра си, за да отвориш този линк, или поискай файла.'
@@ -477,7 +500,8 @@ function openSongEditor(gigId,n){
       if(!saveLib(lib)) return;
       if(song){ const o=norm(song.t), nn=norm(t);
         // a pasted fix (edit:) applies to this title in every gig: keep it in step with the newest text
-        if(hadEdit&&body!==text){ if(body){ if(!store.set('edit:'+o,body)) warnSave(); } else store.del('edit:'+o); }
+        // your fix wins over any newer file (Update/Replace keep it), in every gig with this title
+        if(hadEdit||body!==text){ if(o!==nn) store.del('edit:'+o); if(body){ if(!store.set('edit:'+nn,body)) warnSave(); } else store.del('edit:'+nn); }
         // move the note and the sung mark with the song, never over another song's, and only once the copy is saved
         const move=(from,to)=>{ const v=store.get(from,null); if(v!==null&&store.get(to,null)===null){ if(store.set(to,v)) store.del(from); else warnSave(); } };
         if(o!==nn){ move('note:'+o,'note:'+nn); move('played:'+gigId+':'+o,'played:'+gigId+':'+nn); } }
@@ -494,20 +518,30 @@ const today=()=>new Date().toISOString().slice(0,10);
 function downloadJSON(name,obj){
   const text=JSON.stringify(obj,null,1), blob=new Blob([text],{type:'application/json'});
   try{ const f=new File([blob],name,{type:'application/json'});
-    if(navigator.canShare&&navigator.canShare({files:[f]})&&/iPhone|iPad|Android/i.test(navigator.userAgent)){ navigator.share({files:[f],title:name}).catch(()=>{}); return; } }catch(e){}
+    if(navigator.canShare&&navigator.canShare({files:[f]})&&/iPhone|iPad|Android/i.test(navigator.userAgent)){ return navigator.share({files:[f],title:name}).then(()=>true,()=>false); } }catch(e){}
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click();
   setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1000);
+  return Promise.resolve(true);
 }
 const fileName=n=>(n.replace(/[\\/:*?"<>|]+/g,'').trim()||'gig')+'.lyrics.json';
 function saveFile(gigs,name){
   const ids=new Set(gigs.map(g=>g.id)), live=GIGS.filter(g=>ids.has(g.id));
-  downloadJSON(name||fileName(gigs[0].name),makeLyricsFile(live,x=>lyricsOf(x).text,today()));
+  // your own backup: the lyrics as you edited them, plus your notes
+  const notes={}; live.forEach(g=>g.songs.forEach(x=>{ const n=store.get('note:'+norm(x.t),''); if(n) notes[x.t]=String(n); }));
+  const all=live.length===LIBRARY().gigs.length;
+  return downloadJSON(name||fileName(gigs[0].name),Object.assign(makeLyricsFile(live,x=>lyricsOf(x).text,today()),{notes}))
+    .then(ok=>{ if(ok&&all){ store.set('saved',Date.now()); if(cur<0&&!editing&&$('listBody')) showList(); } return ok; });
+}
+function restoreNotes(notes){
+  if(!notes||typeof notes!=='object') return;
+  Object.keys(notes).forEach(t=>{ const n=notes[t]; if(typeof n==='string'&&n&&!store.get('note:'+norm(t),'')) store.set('note:'+norm(t),n.slice(0,5000)); });
 }
 function pickFile(){ $('packFile').click(); }
-function finishImport(file,mode){
+function finishImport(file,mode,notes){
   const before=new Set(LIBRARY().gigs.map(g=>g.id));
   const lib=applyLyricsImport(plainLib(LIBRARY()),file,mode); lib.made=file.made||lib.made;
   if(!saveLib(lib)) return;
+  if(notes){ restoreNotes(notes); if(file.gigs.length>=before.size) store.set('saved',Date.now()); }   // you just loaded your own backup
   closeSheetQuiet(); const n=file.gigs.length; toast(n===1?tr('Loaded 1 gig'):tr('Loaded {0} gigs',n),2600);
   // open the file's first gig: its renamed copy when kept as a second copy, else the gig itself
   const first=mode==='keep'&&before.has(file.gigs[0].id)?lib.gigs.find(g=>!before.has(g.id)):lib.gigs.find(g=>g.id===file.gigs[0].id);
@@ -518,11 +552,11 @@ function importText(text){
   const v=validateLyricsFile(o); if(!v.ok){ toast(tr('That isn’t a lyrics file'),3500); return; }
   if(o.from!==undefined){ offerFile(v.file,senderName(o.from)); return; }   // a file someone sent with ↗ Send
   const clash=importConflicts(LIBRARY().gigs,v.file.gigs);
-  if(!clash.length){ finishImport(v.file,'keep'); return; }
+  if(!clash.length){ finishImport(v.file,'keep',o.notes); return; }
   const names=clash.map(id=>gigById(id).name);
   openSheet(tr('Already on this device'),`<p class="help">${tr(clash.length===1?'This gig is already here: {0}. Replace it with the file, or keep both?':'These gigs are already here: {0}. Replace them with the file, or keep both?','<b>'+names.map(esc).join(', ')+'</b>')}</p>
     <div class="acts"><button class="tbtn primary" id="impReplace">${tr('Replace')}</button><button class="tbtn" id="impKeep">${tr('Keep both')}</button><button class="tbtn" id="impCancel">${tr('Cancel')}</button></div>`,()=>{
-    $('impReplace').onclick=()=>finishImport(v.file,'replace');
+    $('impReplace').onclick=()=>finishImport(v.file,'replace',o.notes);
     $('impKeep').onclick=()=>finishImport(v.file,'keep');
     $('impCancel').onclick=closeSheetQuiet;
   });
@@ -549,8 +583,10 @@ function showList(){
     <div class="acts"><button class="tbtn primary" data-act="newgig">${tr('Make your own gig')}</button><button class="tbtn" data-act="load">${tr('Load a file')}</button></div></div>`);
   const acts=mine?`<div class="acts listacts"><button class="tbtn" data-act="newgig">${tr('＋ New gig')}</button>${GIG.ex?'':`<button class="tbtn" data-act="editgig">${tr('✎ Edit gig')}</button><button class="tbtn" data-act="sendgig">${tr('↗ Send')}</button>`}<button class="tbtn" data-act="load">${tr('Load a file')}</button></div>`:'';
   const played=GIG.songs.filter(x=>store.get(pkey(x),false)).length;
-  view.innerHTML='<div class="list">'+cards+chips+acts+`<div class="findrow"><input class="find" id="find" type="search" placeholder="${tr('Find a song or a line of lyrics')}" value="${esc(query)}" autocomplete="off">${played?`<button class="tbtn" data-act="clearplayed">${tr('Clear ✓')} <small>${played}</small></button>`:''}</div><div id="listBody"></div></div>`;
+  const unsaved=mine&&+store.get('dirty',0)>+store.get('saved',0)?`<div class="backup"><span>${tr('Your changes are only on this phone. Save them to a file so you never lose them.')}</span><button class="tbtn primary" id="bkSave">${tr('Save all')}</button></div>`:'';
+  view.innerHTML='<div class="list">'+cards+chips+acts+unsaved+`<div class="findrow"><input class="find" id="find" type="search" placeholder="${tr('Find a song or a line of lyrics')}" value="${esc(query)}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">${played?`<button class="tbtn" data-act="clearplayed">${tr('Clear ✓')} <small>${played}</small></button>`:''}</div><div id="listBody"></div></div>`;
   listBody();
+  if($('bkSave')) $('bkSave').onclick=()=>saveFile(LIBRARY().gigs,'my-lyrics.lyrics.json');
   $('find').oninput=e=>{query=e.target.value;listBody()};
   const c=view.querySelector('.row.current'); if(c&&!query) c.scrollIntoView({block:'center'});
   const sel=view.querySelector('.gig[aria-selected="true"]'); if(sel) sel.scrollIntoView({inline:'center',block:'nearest'});
@@ -558,14 +594,15 @@ function showList(){
 function listBody(){
   const q=query.trim().toLowerCase(); let h='';
   if(q){
-    const hits=[], seen=new Set();
+    const hits=[], seen=new Set(), fq=fold(q);
     GIGS.forEach(g=>g.songs.forEach(x=>{
-      const txt=lyricsOf(x).text, inTitle=x.t.toLowerCase().includes(q);
-      const line=txt.split('\n').find(l=>l.toLowerCase().includes(q));
+      const txt=lyricsOf(x).text||'', inTitle=fold(x.t).includes(fq);
+      const line=txt.split('\n').find(l=>!labelOf(l)&&foldMap(l).f.includes(fq));
       if(!inTitle&&!line) return;
       const k=norm(x.t)+'|'+(inTitle?'':line); if(seen.has(k+g.id)) return; seen.add(k+g.id);
       let snip=null;
-      if(!inTitle){ const i=line.toLowerCase().indexOf(q); snip=esc(g.name)+' · “'+esc(line.slice(0,i))+'<mark>'+esc(line.slice(i,i+q.length))+'</mark>'+esc(line.slice(i+q.length))+'”'; }
+      if(!inTitle){ const fm=foldMap(line), j=fm.f.indexOf(fq), i=fm.map[j], e=fm.map[j+fq.length-1]+1;
+        snip=esc(g.name)+' · “'+esc(line.slice(0,i))+'<mark>'+esc(line.slice(i,e))+'</mark>'+esc(line.slice(e))+'”'; }
       hits.push(row(x,true,snip));
     }));
     h=hits.length?`<section class="set"><h2>${tr('Results')} <small>${hits.length}</small></h2><div class="songs">${hits.join('')}</div></section>`:`<p class="empty">${tr('Nothing matches “{0}”.',esc(query))}</p>`;
@@ -630,7 +667,7 @@ $('packFile').onchange=e=>{
 /* ---------- sheets ---------- */
 function openSheet(title,body,onMount){
   $('sheetHost').innerHTML=`<div class="shade" id="shade"><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="sheet-h"><h3>${esc(title)}</h3><button class="tool" id="sheetClose" aria-label="${tr('Close')}">✕</button></div>${body}</div></div>`;
-  $('shade').onclick=e=>{ if(e.target.id==='shade') closeSheet(); };
+  $('shade').onclick=e=>{ if(e.target.id==='shade'&&!$('sheetHost').querySelector('textarea.edit')) closeSheet(); };   // a stray tap never throws away typed lyrics
   $('sheetClose').onclick=closeSheet; if(onMount) onMount();
 }
 function closeSheet(){ $('sheetHost').innerHTML=''; }
@@ -673,17 +710,18 @@ $('optBtn').onclick=openOptions;
 
 /* ---------- wake lock ---------- */
 let lock=null,wantLock=false;
+async function grabLock(){ const l=await navigator.wakeLock.request('screen'); l.addEventListener('release',()=>{ if(lock===l) lock=null; }); lock=l; }
 async function wakeOn(){ wantLock=true;
   if(!('wakeLock' in navigator)){toast(tr('Can’t keep the screen on here — raise Auto-Lock in Settings'),3000);return}
-  try{lock=await navigator.wakeLock.request('screen');lock.addEventListener('release',()=>{lock=null});toast(tr('Screen stays on'))}catch(e){lock=null;toast(tr('Screen lock not allowed here'))} }
+  try{await grabLock();toast(tr('Screen stays on'))}catch(e){lock=null;toast(tr('Screen lock not allowed here'))} }
 async function wakeOff(){ wantLock=false; try{if(lock)await lock.release()}catch(e){} lock=null; toast(tr('Screen can turn off')); }
-document.addEventListener('visibilitychange',async()=>{ if(wantLock&&document.visibilityState==='visible'&&!lock){try{lock=await navigator.wakeLock.request('screen')}catch(e){}} });
+document.addEventListener('visibilitychange',async()=>{ if(document.visibilityState==='visible'){ lastT=0; if(wantLock&&!lock){try{await grabLock()}catch(e){}} } });
 
 /* ---------- auto-scroll ---------- */
 let scrolling=false,rafId=0,lastT=0,acc=0;
 const pxPerSec=()=>5+prefs.speed*5;
 function tick(t){ if(!scrolling) return;
-  if(lastT){acc+=pxPerSec()*(t-lastT)/1000;const s=Math.floor(acc);if(s){scrollBy(0,s);acc-=s}}
+  if(lastT){acc+=pxPerSec()*Math.min(t-lastT,100)/1000;const s=Math.floor(acc);if(s){scrollBy(0,s);acc-=s}}
   lastT=t;
   if(innerHeight+scrollY>=document.documentElement.scrollHeight-2){stopScroll();toast(tr('End of song'));return}
   rafId=requestAnimationFrame(tick); }
@@ -731,9 +769,9 @@ function offerFile(file,from){
   const g=file.gigs[0], titles=gigSongs(g).map(x=>x.t), have=file.gigs.some(x=>gigById(x.id));
   openSheet(from?tr('{0} sent you a gig',from):tr('New gig'),`<p class="help" style="margin-bottom:8px"><b style="color:var(--fg);font-size:18px">${esc(g.name)}</b> · ${songsN(titles.length)}</p>
     <ul class="got">${titles.slice(0,8).map(t=>`<li>${esc(t)}</li>`).join('')}${titles.length>8?`<li>${tr('and {0} more',titles.length-8)}</li>`:''}</ul>
-    ${have?`<p class="help">${tr('You already have this gig. Updating it keeps your notes and ✓ marks.')} ${tr('Lyrics you fixed yourself stay as you fixed them.')}</p>`:''}
+    ${have?`<p class="help">${tr('You already have this gig. Updating it keeps your notes and ✓ marks.')} ${tr('Lyrics you fixed yourself stay as you fixed them.')} ${tr('Songs you have that aren’t in the file stay.')}</p>`:''}
     <div class="acts"><button class="tbtn primary" id="rAdd">${have?tr('Update it'):tr('Add it')}</button><button class="tbtn" id="rCancel">${tr('Cancel')}</button></div>`,()=>{
-    $('rAdd').onclick=()=>finishImport(file,have?'replace':'keep');
+    $('rAdd').onclick=()=>{ if(have) file=Object.assign({},file,{gigs:file.gigs.map(g=>keepMissing(LIBRARY().gigs.find(l=>l.id===g.id),g,'t'))}); finishImport(file,have?'replace':'keep'); };
     $('rCancel').onclick=closeSheet;
   });
 }
@@ -758,14 +796,14 @@ document.addEventListener('touchend',e=>{ if(cur<0||sheetOpen()) return; if(e.ta
   const dx=e.changedTouches[0].clientX-tx, dy=e.changedTouches[0].clientY-ty;
   if(Math.abs(dx)>70&&Math.abs(dy)<50) (dx<0?$('nextBtn'):$('prevBtn')).click(); },{passive:true});
 document.addEventListener('keydown',e=>{
-  if(e.target.matches&&e.target.matches('input,textarea')) return;
+  if(e.target.matches&&e.target.matches('input,textarea')){ if(e.target.id==='mynote'&&/^Page(Up|Down)$/.test(e.key)) e.target.blur(); else return; }   // a pedal still works after typing a note
   if(e.key==='Escape'){ sheetOpen()?closeSheet():cur>=0&&$('homeBtn').click(); return; }
   if(cur<0||sheetOpen()) return;
   const atB=innerHeight+scrollY>=document.documentElement.scrollHeight-4, atT=scrollY<=2;
   if(e.key==='ArrowRight'){e.preventDefault();$('nextBtn').click()}
   else if(e.key==='ArrowLeft'){e.preventDefault();$('prevBtn').click()}
-  else if(e.key==='PageDown'){e.preventDefault();atB?$('nextBtn').click():scrollBy(0,innerHeight*.75)}
-  else if(e.key==='PageUp'){e.preventDefault();atT?$('prevBtn').click():scrollBy(0,-innerHeight*.75)}
+  else if(e.key==='PageDown'||e.key==='ArrowDown'||(e.key===' '&&e.target===document.body)){e.preventDefault();atB?$('nextBtn').click():scrollBy(0,innerHeight*.75)}
+  else if(e.key==='PageUp'||e.key==='ArrowUp'){e.preventDefault();atT?$('prevBtn').click():scrollBy(0,-innerHeight*.75)}
   else if(e.key==='s'){scrolling?stopScroll():startScroll()}
 });
 route();

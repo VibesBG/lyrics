@@ -4,6 +4,11 @@
 let n=0; const fails=[];
 function eq(name,a,b){ try{ const A=typeof a==='function'?a():a; if(JSON.stringify(A)===JSON.stringify(b)) n++; else fails.push('FAIL: '+name+' got '+JSON.stringify(A)); }catch(e){ fails.push('FAIL: '+name+' threw '+e.message); } }
 function T(){
+eq('label with repeat', ()=>['Припев x2','Chorus (x2)','Припев 2х','[Chorus ×2]','Verse'].map(labelOf), ['Припев x2','Chorus (x2)','Припев 2х','Chorus ×2','Verse']);
+eq('repeat label shades as chorus', ()=>parseLyrics('Припев x2\nla la')[0].rep, true);
+eq('search folds й, ѝ, case, apostrophes', ()=>[fold('Don’t Stop'),fold('че ѝ е'),fold('Йонко')], ['dont stop','че и е','ионко']);
+eq('fold map points back', ()=>{ const m=foldMap('Don’t stop'); const j=m.f.indexOf('stop'); return 'Don’t stop'.slice(m.map[j],m.map[j+3]+1); }, 'stop');
+eq('keepMissing (lyrics)', ()=>keepMissing({id:'g',name:'G',sets:[{name:'',songs:[{t:'a'},{t:'b'}]}]},{id:'g',name:'G',sets:[{name:'',songs:[{t:'a'}]}]},'t').sets[0].songs.map(x=>x.t), ['a','b']);
 eq('stanzas split on blank line', ()=>parseLyrics('a\nb\n\nc').map(s=>s.lines), [['a','b'],['c']]);
 eq('label taken off', ()=>parseLyrics('Chorus\nla la\n\nVerse 2:\nx').map(s=>[s.label,s.lines]), [['Chorus',['la la']],['Verse 2',['x']]]);
 eq('bracket label', ()=>parseLyrics('[Bridge]\nyo')[0].label, 'Bridge');

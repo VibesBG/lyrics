@@ -33,7 +33,7 @@ run([
    ok('prefilled', d.getElementById('fLyrics').value==='old paste', d.getElementById('fLyrics').value);
    d.getElementById('fTitle').value='Song One 2'; d.getElementById('fLyrics').value='new words'; d.getElementById('fSave').click(); await sleep(150);
    const L=JSON.parse(localStorage.getItem('ly-pack')); const x=L.gigs[0].sets[0].songs[0];
-   ok('new text', L.texts[x.x]==='new words'); ok('pasted fix follows the newest text', JSON.parse(localStorage.getItem('ly-edit:songone'))==='new words');
+   ok('new text', L.texts[x.x]==='new words'); ok('pasted fix follows the newest text and the new title', JSON.parse(localStorage.getItem('ly-edit:songone2'))==='new words'&&localStorage.getItem('ly-edit:songone')===null);
    ok('note moved', JSON.parse(localStorage.getItem('ly-note:songone2'))==='hi'); ok('shows new words', /new words/.test(d.querySelector('.lyrics').textContent)); }],
  ['L2 gig editor reorder/delete', async()=>{ const d=await open('#edit-mybar',{'ly-pack':V1,'ly-seenWelcome':true}); frame.contentWindow.confirm=()=>true;
    const songRow=()=>[...d.querySelectorAll('.it')].filter(r=>r.querySelector('.ittitle'))[0];
@@ -129,5 +129,32 @@ run([
    ok('new words', /New words/.test((frame.contentDocument.querySelector('.lyrics')||{}).textContent||'')); }],
  ['LS broken link says so', async()=>{ const d=await open('#get=zBROKEN',{'ly-seenWelcome':true}); await sleep(200);
    const h=d.querySelector('.sheet h3'); ok('error sheet', h&&/Link not working/.test(h.textContent), h&&h.textContent); }],
+ ['N1 backup carries notes; reminder comes and goes', async()=>{ const d=await open('#mybar-1',{'ly-pack':V1,'ly-seenWelcome':true});
+   const w=frame.contentWindow; const n=d.getElementById('mynote'); n.value='breathe here'; n.dispatchEvent(new Event('input')); await sleep(50);
+   w.location.hash='g-mybar'; await sleep(200); ok('reminder shows', !!d.getElementById('bkSave'));
+   let got=null; w.downloadJSON=(name,o)=>{ got=o; return Promise.resolve(true); };
+   d.getElementById('bkSave').click(); await sleep(150);
+   ok('file has my note', got&&got.notes&&got.notes['Song One']==='breathe here', got&&got.notes); ok('reminder gone', !d.getElementById('bkSave'));
+   const file=JSON.stringify(got); localStorage.clear(); const d2=await open('',{'ly-seenWelcome':true});
+   frame.contentWindow.importText(file); await sleep(250);
+   ok('note restored', JSON.parse(localStorage.getItem('ly-note:'+frame.contentWindow.eval("norm('Song One')"))||'""')==='breathe here');
+   ok('no reminder after loading my backup', !frame.contentWindow.document.getElementById('bkSave')); }],
+ ['N2 my lyric fix survives an update from a bandmate', async()=>{ const d=await open('#mybar-1',{'ly-pack':V1,'ly-seenWelcome':true});
+   d.querySelector('[data-act="edit"]').click(); await sleep(100);
+   d.getElementById('fLyrics').value='MY FIXED WORDS'; d.getElementById('fSave').click(); await sleep(150);
+   frame.contentWindow.importText(JSON.stringify({kind:'lyrics-pack',v:2,from:'Дарин',gigs:[{id:'mybar',name:'Friday Bar',sets:[{name:'',songs:[{t:'Song One',x:'n1'}]}]}],texts:{n1:'their words'}})); await sleep(100);
+   d.getElementById('rAdd').click(); await sleep(250);
+   const w=frame.contentWindow; w.location.hash='mybar-1'; await sleep(150);
+   ok('my fix shown', /MY FIXED WORDS/.test(d.querySelector('.lyrics').textContent), d.querySelector('.lyrics').textContent.slice(0,60));
+   const t=JSON.parse(localStorage.getItem('ly-pack')).gigs[0].sets.flatMap(s=>s.songs.map(x=>x.t)); ok('Song Two kept', t.includes('Song Two'), t); }],
+ ['N3 a song called constructor is just a song', async()=>{ const pack={kind:'lyrics-pack',v:2,gigs:[{id:'g',name:'G',sets:[{name:'',songs:[{t:'Constructor'},{t:'Other',x:'toString'}]}]}],texts:{}};
+   const d=await open('#g-1',{'ly-pack':pack,'ly-seenWelcome':true});
+   ok('no fake lyrics', !/native code/.test(d.body.textContent));
+   frame.contentWindow.location.hash='g-g'; await sleep(150); const f=d.getElementById('find'); f.value='zzz'; f.dispatchEvent(new Event('input')); await sleep(50);
+   ok('search still works', /Nothing matches/.test(d.getElementById('listBody').textContent), d.getElementById('listBody').textContent); }],
+ ['N4 search ignores smart apostrophes', async()=>{ const pack={kind:'lyrics-pack',v:2,gigs:[{id:'g',name:'G',sets:[{name:'',songs:[{t:"Don't Stop",x:'a'}]}]}],texts:{a:'Chorus\nwe go on'}};
+   const d=await open('#g-g',{'ly-pack':pack,'ly-seenWelcome':true}); const f=d.getElementById('find');
+   for(const q of ['don’t','dont']){ f.value=q; f.dispatchEvent(new Event('input')); await sleep(30); ok('finds '+q, d.querySelectorAll('#listBody .row').length===1, d.getElementById('listBody').textContent); }
+   f.value='chorus'; f.dispatchEvent(new Event('input')); await sleep(30); ok('label line not a hit', d.querySelectorAll('#listBody .row').length===0); }],
 ]);
 </script>

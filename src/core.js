@@ -1,10 +1,19 @@
 /* Pure logic shared by the app and the tests. No DOM access here. */
 const norm=t=>String(t).toLowerCase().replace(/[’`]/g,"'").replace(/[^\p{L}\p{N}]/gu,'');
+// Search: ignore case, accents (й→и, ѝ→и, é→e), apostrophes (don’t = dont) and extra spaces.
+// Returns the folded text and, for each folded character, where it came from in the original.
+function foldMap(s){ let f='', map=[]; s=String(s);
+  for(let i=0;i<s.length;i++){ const c=s[i]; if(/['’‘`´]/.test(c)) continue;
+    const d=c.normalize('NFD').replace(/\p{M}/gu,'').toLowerCase(); if(/\s/.test(d)&&/\s$/.test(f)) continue;
+    for(const ch of d){ f+=/\s/.test(ch)?' ':ch; map.push(i); } }
+  return {f,map}; }
+const fold=s=>foldMap(s).f.trim();
 const stKey=s=>s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim();
 
 /* ---------- lyrics text -> stanzas ---------- */
 const LABEL_WORDS='chorus|verse|bridge|pre-?chorus|intro|outro|refrain|hook|interlude|coda|tag|припев|куплет|бридж|мост|интро|финал|рефрен';
-const LABEL=new RegExp('^\\[?\\s*(('+LABEL_WORDS+')(\\s*\\d+)?)\\s*\\]?\\s*:?$','i');
+// a label may carry a repeat: "Chorus x2", "Припев (2х)", "Chorus ×2"
+const LABEL=new RegExp('^\\[?\\s*(('+LABEL_WORDS+')(\\s*\\d+)?(\\s*\\(?\\s*(?:[xх×]\\s*\\d+|\\d+\\s*[xх×])\\s*\\)?)?)\\s*\\]?\\s*:?$','i');
 const CHORUSY=/^(chorus|refrain|hook|припев|рефрен)/i;
 function labelOf(line){
   const l=line.trim(); let m=l.match(LABEL); if(m) return m[1].replace(/\s+/g,' ');
@@ -48,6 +57,15 @@ function applyLyricsImport(lib,file,mode){
     let n=2; while(out.gigs.some(e=>e.id===g.id+n)) n++;
     g.id=g.id+n; g.name=g.name+' ('+n+')'; out.gigs.push(g);
   });
+  return out;
+}
+// Updating a gig from a file someone sent: their songs come in, and songs you have that
+// weren't in the file stay (added at the end), so a partial send never deletes anything.
+function keepMissing(local,incoming,tk){
+  const out=clone(incoming); if(!local) return out;
+  const have=new Set(); out.sets.forEach(s=>s.songs.forEach(x=>{ if(x[tk]!==undefined) have.add(x[tk]); }));
+  const extra=[]; local.sets.forEach(s=>s.songs.forEach(x=>{ if(x[tk]!==undefined&&!have.has(x[tk])){ have.add(x[tk]); extra.push(clone(x)); } }));
+  if(extra.length){ if(!out.sets.length) out.sets.push({name:'',songs:[]}); out.sets[out.sets.length-1].songs.push(...extra); }
   return out;
 }
 function makeLyricsFile(gigs,lyricsOf,today){
